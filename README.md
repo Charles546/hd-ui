@@ -10,6 +10,10 @@ A React/Vite single-page app that shows in-fly Honeydipper workflow sessions in 
 - **Pagination** — cursor-based paging through sessions
 - **Auto-refresh toggle** — pause/resume live polling
 
+## Screenshot
+
+![Honeydipper Web UI dashboard](docs/images/workflow-dashboard.png)
+
 ## Quick start
 
 ```bash
