@@ -155,11 +155,13 @@ If your intended use does not fit AGPL obligations, see `LICENSE-COMMERCIAL.md` 
 
 - Privacy Policy: [PRIVACY.md](PRIVACY.md)
 - Terms of Service: [TERMS-OF-SERVICE.md](TERMS-OF-SERVICE.md)
+- Transparency Disclosures: [TRANSPARENCY-DISCLOSURES.md](TRANSPARENCY-DISCLOSURES.md)
 
 Public URLs (for GitHub App configuration):
 
 - Privacy Policy URL: https://github.com/Charles546/hd-ui/blob/main/PRIVACY.md
 - Terms of Service URL: https://github.com/Charles546/hd-ui/blob/main/TERMS-OF-SERVICE.md
+- Transparency Disclosures URL: https://github.com/Charles546/hd-ui/blob/main/TRANSPARENCY-DISCLOSURES.md
 
 ## License
 
