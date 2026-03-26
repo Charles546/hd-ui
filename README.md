@@ -151,6 +151,16 @@ Issue templates are available under `.github/ISSUE_TEMPLATE/`.
 
 If your intended use does not fit AGPL obligations, see `LICENSE-COMMERCIAL.md` and contact the copyright holder for commercial terms.
 
+## Policy links for GitHub App listing
+
+- Privacy Policy: [PRIVACY.md](PRIVACY.md)
+- Terms of Service: [TERMS-OF-SERVICE.md](TERMS-OF-SERVICE.md)
+
+Public URLs (for GitHub App configuration):
+
+- Privacy Policy URL: https://github.com/Charles546/hd-ui/blob/main/PRIVACY.md
+- Terms of Service URL: https://github.com/Charles546/hd-ui/blob/main/TERMS-OF-SERVICE.md
+
 ## License
 
 This project is prepared for dual licensing:
