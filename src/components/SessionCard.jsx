@@ -92,6 +92,7 @@ export default function SessionCard({ session, isChild = false }) {
   const state = data?.state || 'unknown'
   const isLive = state !== 'done'
   const status = labels?.status
+  const showStatusBadge = state === 'done'
   const isSucceeded = status === 'success'
   const isFailedOrErrored = status === 'failure' || status === 'error'
   const displayedPerforming = performing || []
@@ -108,7 +109,7 @@ export default function SessionCard({ session, isChild = false }) {
         <span style={{ ...s.brief, ...(isLive ? s.liveBrief : null) }}>{data?.brief || 'Unnamed workflow'}</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <span style={s.badge(stateColor)}>{state}</span>
-          {status && statusColor && <span style={s.badge(statusColor)}>{status}</span>}
+          {showStatusBadge && status && statusColor && <span style={s.badge(statusColor)}>{status}</span>}
           {isNoop && <span style={s.badge('#a78bfa')}>no-op</span>}
           {isHook && <span style={s.badge('#22d3ee')}>hook</span>}
         </div>

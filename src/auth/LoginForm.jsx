@@ -26,13 +26,14 @@ const s = {
 }
 
 export default function LoginForm() {
-  const { login } = useAuth()
+  const { login, loginWithGitHub } = useAuth()
   const [scheme, setScheme] = useState('token')
   const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [githubError, setGithubError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -58,6 +59,16 @@ export default function LoginForm() {
     }
   }
 
+  function handleGitHubLogin() {
+    setGithubError('')
+
+    try {
+      loginWithGitHub()
+    } catch (err) {
+      setGithubError(err.message || 'GitHub login is not configured.')
+    }
+  }
+
   return (
     <div style={s.wrap}>
       <div style={s.card}>
@@ -66,6 +77,10 @@ export default function LoginForm() {
           <span style={s.logo}>Honeydipper</span>
         </div>
         <div style={s.sub}>Sign in to view in-fly workflows</div>
+
+        <button style={{ ...s.btn, marginBottom: 16 }} type="button" onClick={handleGitHubLogin}>
+          Continue With GitHub
+        </button>
 
         <div style={s.tabs}>
           <button style={s.tab(scheme === 'token')} onClick={() => setScheme('token')}>Bearer Token</button>
@@ -100,7 +115,7 @@ export default function LoginForm() {
           </button>
         </form>
 
-        {error && <div style={s.err}>{error}</div>}
+        {(error || githubError) && <div style={s.err}>{error || githubError}</div>}
       </div>
     </div>
   )
