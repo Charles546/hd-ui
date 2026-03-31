@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import GitHubCallback from './auth/GitHubCallback'
+import GitHubSecretsPage from './components/GitHubSecretsPage'
 import GitHubWorkflowList from './components/GitHubWorkflowList'
 import LoginForm from './auth/LoginForm'
 import NavBar from './components/NavBar'
@@ -22,6 +23,14 @@ function parseRouteLocation() {
     return { view: 'github-events', ghSlug }
   }
 
+  if (pathname.startsWith('/gh/secrets')) {
+    const raw = pathname.replace(/^\/gh\/secrets\/?/, '')
+    const ghSlug = raw
+      ? raw.split('/').map((part) => decodeURIComponent(part)).join('/')
+      : ''
+    return { view: 'github-secrets', ghSlug }
+  }
+
   if (params.get('view') === 'github-events') {
     return { view: 'github-events', ghSlug: (params.get('gh') || '').trim() }
   }
@@ -36,6 +45,15 @@ function buildGitHubEventsPath(ghSlug) {
   }
 
   return `/gh/events/${normalized.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+}
+
+function buildGitHubSecretsPath(ghSlug) {
+  const normalized = String(ghSlug || '').replace(/^\/+/, '').trim()
+  if (!normalized) {
+    return '/gh/secrets'
+  }
+
+  return `/gh/secrets/${normalized.split('/').map((part) => encodeURIComponent(part)).join('/')}`
 }
 
 export default function App() {
@@ -65,7 +83,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!isGitHubSession && view === 'github-events') {
+    if (!isGitHubSession && (view === 'github-events' || view === 'github-secrets')) {
       setView('events')
     }
   }, [isGitHubSession, view])
@@ -80,8 +98,11 @@ export default function App() {
     }
 
     let targetPath = '/'
-    if (view === 'github-events' && isGitHubSession) {
+    if (isGitHubSession && view === 'github-events') {
       targetPath = buildGitHubEventsPath(ghSlug)
+    }
+    if (isGitHubSession && view === 'github-secrets') {
+      targetPath = buildGitHubSecretsPath(ghSlug)
     }
 
     const current = window.location.pathname + window.location.search
@@ -107,6 +128,14 @@ export default function App() {
     }
   }
 
+  const openGitHubSecrets = () => {
+    setView('github-secrets')
+  }
+
+  const openGitHubEvents = () => {
+    setView('github-events')
+  }
+
   const showGitHubEventsTab = isGitHubSession
 
   return (
@@ -116,11 +145,18 @@ export default function App() {
         onViewChange={handleViewChange}
         showGlobalEventsTab={showGlobalEventsTab}
         showGitHubEventsTab={showGitHubEventsTab}
+        showGitHubSecretsTab={showGitHubEventsTab}
       />
       <main style={s.main}>
-        {isGitHubSession && view === 'github-events'
-          ? <GitHubWorkflowList ghSlug={ghSlug} onGhSlugChange={setGhSlug} />
-          : <WorkflowList onForbidden={handleEventsForbidden} />}
+        {isGitHubSession && view === 'github-events' && (
+          <GitHubWorkflowList ghSlug={ghSlug} onGhSlugChange={setGhSlug} onOpenSecrets={openGitHubSecrets} />
+        )}
+        {isGitHubSession && view === 'github-secrets' && (
+          <GitHubSecretsPage ghSlug={ghSlug} onGhSlugChange={setGhSlug} onBackToEvents={openGitHubEvents} />
+        )}
+        {(!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
+          <WorkflowList onForbidden={handleEventsForbidden} />
+        )}
       </main>
     </>
   )

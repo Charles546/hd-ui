@@ -87,6 +87,30 @@ export async function listGitHubEvents(creds, ghSlug, params = {}) {
   return apiFetch(`/gh/events/${encodeURIComponent(slug)}${suffix}`, creds)
 }
 
+// GET /api/gh/secrets/*gh_slug — list secret keys for a GitHub org/repo target
+export async function listGitHubSecrets(creds, ghSlug) {
+  const slug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  return apiFetch(`/gh/secrets/${encodeURIComponent(slug)}`, creds)
+}
+
+// POST /api/gh/secrets/*gh_slug — set one secret key/value
+export async function setGitHubSecret(creds, ghSlug, key, value) {
+  const slug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  return apiFetch(`/gh/secrets/${encodeURIComponent(slug)}`, creds, {
+    method: 'POST',
+    body: JSON.stringify({ key, value }),
+  })
+}
+
+// DELETE /api/gh/secrets/*gh_slug?key=... — delete one secret key
+export async function deleteGitHubSecret(creds, ghSlug, key) {
+  const slug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  const query = new URLSearchParams({ key: String(key || '') })
+  return apiFetch(`/gh/secrets/${encodeURIComponent(slug)}?${query.toString()}`, creds, {
+    method: 'DELETE',
+  })
+}
+
 // POST /api/events — trigger an event
 export async function postEvent(creds, payload) {
   return apiFetch('/events', creds, { method: 'POST', body: JSON.stringify(payload) })

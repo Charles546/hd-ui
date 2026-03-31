@@ -232,7 +232,7 @@ function pushGhTargetHistory(history, target) {
   return [normalized, ...withoutDup].slice(0, GH_TARGET_HISTORY_LIMIT)
 }
 
-export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () => {} }) {
+export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () => {}, onOpenSecrets = () => {} }) {
   const { creds, can } = useAuth()
   const [sessions, setSessions] = useState([])
   const [error, setError] = useState('')
@@ -664,6 +664,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
           </div>
         </div>
         <div style={s.controls}>
+          <button style={s.btn()} onClick={onOpenSecrets} title='Manage script secrets for current GitHub target'>Script Secrets</button>
           <button style={s.btn(autoRefresh ? 'primary' : '')} onClick={() => setAutoRefresh(v => !v)}>
             {autoRefresh ? '⏸ Pause' : '▶ Resume'}
           </button>
