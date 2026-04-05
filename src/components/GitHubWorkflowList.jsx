@@ -508,8 +508,10 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
   const visible = sessions.filter((session) => {
     const isNoop = !!session?.data?.is_noop
     const isHook = !!(session?.data?.is_hook || session?.is_hook)
+    const status = session?.labels?.status
+    const isFailedNoop = isNoop && (status === 'failure' || status === 'error')
 
-    if (!showNoop && isNoop) {
+    if (!showNoop && isNoop && !isFailedNoop) {
       return false
     }
     if (!showHook && isHook) {
