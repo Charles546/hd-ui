@@ -232,7 +232,7 @@ function pushGhTargetHistory(history, target) {
   return [normalized, ...withoutDup].slice(0, GH_TARGET_HISTORY_LIMIT)
 }
 
-export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () => {}, onOpenSecrets = () => {} }) {
+export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () => {}, onOpenSecrets = () => {}, onOpenLogStream = () => {} }) {
   const { creds, can } = useAuth()
   const [sessions, setSessions] = useState([])
   const [error, setError] = useState('')
@@ -547,7 +547,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
       <div key={id || `${session?.data?.event_id || 'event'}-${depth}`} style={{ ...s.treeNode, marginLeft: indent }}>
         <div style={s.nodeHead}>
           <div style={s.nodeBody}>
-            <SessionCard session={session} isChild={depth > 0} />
+            <SessionCard session={session} isChild={depth > 0} onOpenLogStream={onOpenLogStream} />
           </div>
           {shouldShowToggle && (
             <button

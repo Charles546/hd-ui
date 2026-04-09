@@ -58,6 +58,28 @@ async function apiFetch(path, creds, options = {}) {
   return res.json()
 }
 
+function unwrapPodLogChunkEnvelope(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload
+  }
+
+  if (Array.isArray(payload.lines) || payload.next_cursor || payload.done !== undefined || payload.has_more !== undefined) {
+    return payload
+  }
+
+  for (const entry of Object.values(payload)) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue
+    }
+
+    if (Array.isArray(entry.lines) || entry.next_cursor || entry.done !== undefined || entry.has_more !== undefined) {
+      return entry
+    }
+  }
+
+  return payload
+}
+
 // GET /api/events — list in-fly workflow sessions
 export async function listEvents(creds, params = {}) {
   const query = new URLSearchParams()
@@ -119,6 +141,37 @@ export async function postEvent(creds, payload) {
 // GET /api/events/:eventID/wait — long-poll for a specific event result
 export async function waitEvent(creds, eventID) {
   return apiFetch(`/events/${encodeURIComponent(eventID)}/wait`, creds)
+}
+
+// GET /api/pods/:pod_id/log/chunk — fetch one log chunk with cursor-based long polling
+export async function getPodLogChunk(creds, podID, params = {}) {
+  const query = new URLSearchParams()
+  if (params.provider) {
+    query.set('provider', String(params.provider))
+  }
+  if (params.waitSeconds !== undefined && params.waitSeconds !== null) {
+    query.set('wait_seconds', String(params.waitSeconds))
+  }
+  if (params.maxLines !== undefined && params.maxLines !== null) {
+    query.set('max_lines', String(params.maxLines))
+  }
+  if (params.doneMaxLines !== undefined && params.doneMaxLines !== null) {
+    query.set('done_max_lines', String(params.doneMaxLines))
+  }
+  if (params.cursor) {
+    query.set('cursor', JSON.stringify(params.cursor))
+  }
+  if (params.streamToken) {
+    query.set('stream_token', String(params.streamToken))
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  const normalizedSlug = String(params.ghSlug || '').replace(/^\/+/, '').trim()
+  const basePath = normalizedSlug
+    ? `/gh/pods/${encodeURIComponent(podID)}/log/chunk/${normalizedSlug.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+    : `/pods/${encodeURIComponent(podID)}/log/chunk`
+  const payload = await apiFetch(`${basePath}${suffix}`, creds)
+  return unwrapPodLogChunkEnvelope(payload)
 }
 
 // GET /api/user/profile — current authenticated user profile

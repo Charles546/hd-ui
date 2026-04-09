@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import SessionCard from './SessionCard'
 
 function makeSession(overrides = {}) {
@@ -56,5 +56,34 @@ describe('SessionCard', () => {
     expect(screen.getByText('step-1')).toBeInTheDocument()
     expect(screen.getByText('step-2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /collapse/i })).toBeInTheDocument()
+  })
+
+  it('shows log stream icon and calls handler with provider and pod ID', () => {
+    const onOpenLogStream = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            log_stream: {
+              provider: 'podman',
+              pod_id: 'pod-xyz',
+              gh_slug: 'org/repo',
+              stream_token: 'signed-token',
+            },
+          },
+        })}
+        onOpenLogStream={onOpenLogStream}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '📜' }))
+
+    expect(onOpenLogStream).toHaveBeenCalledWith({
+      provider: 'podman',
+      podID: 'pod-xyz',
+      ghSlug: 'org/repo',
+      streamToken: 'signed-token',
+    })
   })
 })

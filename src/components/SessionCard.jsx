@@ -86,7 +86,7 @@ const s = {
   desc: { fontSize: 13, color: '#64748b', marginBottom: 4 },
 }
 
-export default function SessionCard({ session, isChild = false }) {
+export default function SessionCard({ session, isChild = false, onOpenLogStream = null }) {
   const [performingExpanded, setPerformingExpanded] = useState(false)
   const { data, labels, performing } = session
   const state = data?.state || 'unknown'
@@ -102,12 +102,51 @@ export default function SessionCard({ session, isChild = false }) {
   const isNoop = !!(data?.is_noop || session?.is_noop)
   const isHook = !!(data?.is_hook || session?.is_hook)
   const performingToShow = performingExpanded ? displayedPerforming : displayedPerforming.slice(-3)
+  const logStream = data?.log_stream && typeof data.log_stream === 'object' ? data.log_stream : null
+  const hasLogStream = !!(logStream?.pod_id || logStream?.podID)
+
+  const openLogStream = () => {
+    if (!hasLogStream || typeof onOpenLogStream !== 'function') {
+      return
+    }
+
+    const podID = logStream?.pod_id || logStream?.podID || ''
+    const provider = logStream?.provider || logStream?.runtime || 'podman'
+    const streamToken = logStream?.stream_token || logStream?.token || ''
+    const ghSlug = logStream?.gh_slug || ''
+    const payload = { provider, podID }
+    if (streamToken) {
+      payload.streamToken = streamToken
+    }
+    if (ghSlug) {
+      payload.ghSlug = ghSlug
+    }
+
+    onOpenLogStream(payload)
+  }
 
   return (
     <div style={{ ...s.card, ...(isLive ? s.liveCard : null) }}>
       <div style={s.header}>
         <span style={{ ...s.brief, ...(isLive ? s.liveBrief : null) }}>{data?.brief || 'Unnamed workflow'}</span>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {hasLogStream && (
+            <button
+              onClick={openLogStream}
+              title='Open live log stream'
+              style={{
+                border: '1px solid #3f4557',
+                background: '#151b26',
+                color: '#facc15',
+                borderRadius: 6,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                fontSize: 13,
+              }}
+            >
+              📜
+            </button>
+          )}
           <span style={s.badge(stateColor)}>{state}</span>
           {showStatusBadge && status && statusColor && <span style={s.badge(statusColor)}>{status}</span>}
           {isNoop && <span style={s.badge('#a78bfa')}>no-op</span>}
