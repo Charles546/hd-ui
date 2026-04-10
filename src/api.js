@@ -33,19 +33,34 @@ async function apiFetch(path, creds, options = {}) {
     },
   })
 
+  const readErrorMessage = async () => {
+    const body = await res.json().catch(() => ({}))
+    if (body && typeof body === 'object') {
+      if (typeof body.error === 'string' && body.error.trim()) {
+        return body.error.trim()
+      }
+      if (typeof body.message === 'string' && body.message.trim()) {
+        return body.message.trim()
+      }
+    }
+    return ''
+  }
+
   if (res.status === 401) {
-    const err = new Error('Unauthorized')
+    const message = await readErrorMessage()
+    const err = new Error(message || 'Unauthorized')
     err.status = 401
     throw err
   }
   if (res.status === 403) {
-    const err = new Error('Forbidden')
+    const message = await readErrorMessage()
+    const err = new Error(message || 'Forbidden')
     err.status = 403
     throw err
   }
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    const err = new Error(body.error || `HTTP ${res.status}`)
+    const message = await readErrorMessage()
+    const err = new Error(message || `HTTP ${res.status}`)
     err.status = res.status
     throw err
   }

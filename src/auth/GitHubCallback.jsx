@@ -9,6 +9,45 @@ const s = {
   err: { color: '#f87171', fontSize: 13, marginTop: 12 },
 }
 
+function buildOAuthErrorMessage(errorCode, description) {
+  const code = String(errorCode || '').trim().toLowerCase()
+  const detail = String(description || '').trim()
+
+  if (code === 'access_denied') {
+    return 'GitHub sign-in was canceled or denied. Please try again and approve the requested access.'
+  }
+
+  if (detail) {
+    return `GitHub login failed: ${detail}`
+  }
+
+  return `GitHub login failed: ${errorCode}`
+}
+
+function buildCallbackFailureMessage(err) {
+  const status = err?.status
+  const raw = String(err?.message || '').trim()
+  const lower = raw.toLowerCase()
+
+  if (status === 403 || lower.includes('not allowed by github login restrictions')) {
+    return 'Your GitHub account is not allowed to sign in for this Honeydipper deployment. Ask an administrator to add your GitHub username to allowed_users or one of your organizations to allowed_orgs.'
+  }
+
+  if (status === 401) {
+    return 'GitHub sign-in could not be validated by the API. Please retry. If this continues, ask an administrator to verify OAuth client settings and callback URL configuration.'
+  }
+
+  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network error')) {
+    return 'GitHub sign-in could not reach the Honeydipper API. Check connectivity and try again.'
+  }
+
+  if (raw) {
+    return `GitHub login failed: ${raw}. Please try again or contact an administrator.`
+  }
+
+  return 'GitHub login failed. Please try again or contact an administrator.'
+}
+
 export default function GitHubCallback() {
   const { finishGitHubLogin } = useAuth()
   const [error, setError] = useState('')
@@ -20,10 +59,11 @@ export default function GitHubCallback() {
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
       const authError = params.get('error')
+      const authErrorDescription = params.get('error_description')
 
       if (authError) {
         if (active) {
-          setError(`GitHub login failed: ${authError}`)
+          setError(buildOAuthErrorMessage(authError, authErrorDescription))
         }
 
         return
@@ -43,7 +83,7 @@ export default function GitHubCallback() {
         window.location.assign('/')
       } catch (err) {
         if (active) {
-          setError(err.message || 'GitHub login failed.')
+          setError(buildCallbackFailureMessage(err))
         }
       }
     }

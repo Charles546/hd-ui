@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { getPodLogChunk } from './api'
+import { completeGitHubLogin, getPodLogChunk } from './api'
 
 describe('getPodLogChunk', () => {
   beforeEach(() => {
@@ -83,5 +83,25 @@ describe('getPodLogChunk', () => {
     expect(requestURL).toContain('/api/gh/pods/pod-3/log/chunk/my-org/my-repo')
     expect(requestURL).toContain('provider=kubernetes')
     expect(requestURL).toContain('stream_token=signed-token-abc')
+  })
+})
+
+describe('completeGitHubLogin', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces backend 403 error details', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => null },
+      json: async () => ({ error: 'user not allowed by GitHub login restrictions' }),
+    })
+
+    await expect(completeGitHubLogin('abc123')).rejects.toMatchObject({
+      status: 403,
+      message: 'user not allowed by GitHub login restrictions',
+    })
   })
 })
