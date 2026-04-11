@@ -86,7 +86,7 @@ const s = {
   desc: { fontSize: 13, color: '#64748b', marginBottom: 4 },
 }
 
-export default function SessionCard({ session, isChild = false, onOpenLogStream = null }) {
+export default function SessionCard({ session, isChild = false, onOpenLogStream = null, onRerunSession = null }) {
   const [performingExpanded, setPerformingExpanded] = useState(false)
   const { data, labels, performing } = session
   const state = data?.state || 'unknown'
@@ -104,6 +104,7 @@ export default function SessionCard({ session, isChild = false, onOpenLogStream 
   const performingToShow = performingExpanded ? displayedPerforming : displayedPerforming.slice(-3)
   const logStream = data?.log_stream && typeof data.log_stream === 'object' ? data.log_stream : null
   const hasLogStream = !!(logStream?.pod_id || logStream?.podID)
+  const canRerun = state === 'done' && !!data?.session_id && !!(data?.rerun?.available || data?.can_rerun)
 
   const openLogStream = () => {
     if (!hasLogStream || typeof onOpenLogStream !== 'function') {
@@ -125,11 +126,42 @@ export default function SessionCard({ session, isChild = false, onOpenLogStream 
     onOpenLogStream(payload)
   }
 
+  const rerunSession = () => {
+  if (!canRerun || typeof onRerunSession !== 'function') {
+    return
+  }
+
+  onRerunSession({
+    sessionID: data?.session_id || '',
+    eventID: data?.event_id || '',
+    eventName: data?.event_name || '',
+  })
+  }
+
   return (
     <div style={{ ...s.card, ...(isLive ? s.liveCard : null) }}>
       <div style={s.header}>
         <span style={{ ...s.brief, ...(isLive ? s.liveBrief : null) }}>{data?.brief || 'Unnamed workflow'}</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {canRerun && (
+            <button
+              onClick={rerunSession}
+              title='Re-run workflow'
+              aria-label='Re-run workflow'
+              style={{
+                border: '1px solid #3f4557',
+                background: '#151b26',
+                color: typeof onRerunSession === 'function' ? '#93c5fd' : '#64748b',
+                borderRadius: 6,
+                padding: '2px 8px',
+                cursor: typeof onRerunSession === 'function' ? 'pointer' : 'not-allowed',
+                fontSize: 13,
+              }}
+              disabled={typeof onRerunSession !== 'function'}
+            >
+              ↻
+            </button>
+          )}
           {hasLogStream && (
             <button
               onClick={openLogStream}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { listGitHubEvents } from '../api'
+import { listGitHubEvents, rerunEventSession } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import SessionCard from './SessionCard'
 
@@ -76,6 +76,7 @@ const s = {
   }),
   empty: { textAlign: 'center', color: '#475569', padding: '60px 0', fontSize: 15 },
   err: { color: '#f87171', fontSize: 13, marginBottom: 12 },
+  ok: { color: '#4ade80', fontSize: 13, marginBottom: 12 },
   bottomControls: { display: 'flex', justifyContent: 'center', marginTop: 16 },
   checkLabel: { fontSize: 13, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' },
   treeWrap: { display: 'flex', flexDirection: 'column', gap: 2 },
@@ -238,6 +239,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null)
+  const [info, setInfo] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [showNoop, setShowNoop] = useState(false)
@@ -426,6 +428,23 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
     }
   }, [creds, can, ghSlug, oldestAsOf])
 
+  const handleRerunSession = useCallback(async ({ sessionID }) => {
+    if (!sessionID) {
+      return
+    }
+
+    try {
+      setError('')
+      const result = await rerunEventSession(creds, sessionID)
+      const nextSessionID = result?.sessionID || result?.session_id || ''
+      setInfo(nextSessionID ? `Re-run started as session ${nextSessionID}.` : 'Re-run started.')
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to re-run workflow')
+    }
+  }, [creds, fetchSessions])
+
   useEffect(() => {
     if (!ghSlug) {
       return
@@ -547,7 +566,12 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
       <div key={id || `${session?.data?.event_id || 'event'}-${depth}`} style={{ ...s.treeNode, marginLeft: indent }}>
         <div style={s.nodeHead}>
           <div style={s.nodeBody}>
-            <SessionCard session={session} isChild={depth > 0} onOpenLogStream={onOpenLogStream} />
+            <SessionCard
+              session={session}
+              isChild={depth > 0}
+              onOpenLogStream={onOpenLogStream}
+              onRerunSession={handleRerunSession}
+            />
           </div>
           {shouldShowToggle && (
             <button
@@ -682,6 +706,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
         </div>
       </div>
 
+      {info && <div style={s.ok}>{info}</div>}
       {error && <div style={s.err}>⚠ {error}</div>}
 
       {!ghSlug && !loading && !error && (

@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import SessionCard from './SessionCard'
 
 function makeSession(overrides = {}) {
+  const dataOverrides = overrides.data || {}
+  const labelOverrides = overrides.labels || {}
+
   return {
     data: {
       brief: 'Test workflow',
@@ -10,15 +13,14 @@ function makeSession(overrides = {}) {
       event_name: 'demo',
       event_id: 'evt-1',
       session_id: 'sess-1',
-      ...overrides.data,
+      ...dataOverrides,
     },
     labels: {
       status: 'success',
       start: '2026-03-26T10:00:00.000Z',
-      ...overrides.labels,
+      ...labelOverrides,
     },
     performing: overrides.performing || [],
-    ...overrides,
   }
 }
 
@@ -84,6 +86,30 @@ describe('SessionCard', () => {
       podID: 'pod-xyz',
       ghSlug: 'org/repo',
       streamToken: 'signed-token',
+    })
+  })
+
+  it('shows re-run button and calls handler with session metadata', () => {
+    const onRerunSession = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            state: 'done',
+            rerun: { available: true },
+          },
+        })}
+        onRerunSession={onRerunSession}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /re-run workflow/i }))
+
+    expect(onRerunSession).toHaveBeenCalledWith({
+      sessionID: 'sess-1',
+      eventID: 'evt-1',
+      eventName: 'demo',
     })
   })
 })

@@ -153,6 +153,11 @@ export async function postEvent(creds, payload) {
   return apiFetch('/events', creds, { method: 'POST', body: JSON.stringify(payload) })
 }
 
+// POST /api/events/:sessionID/rerun — rerun a session from preserved inputs
+export async function rerunEventSession(creds, sessionID) {
+  return apiFetch(`/events/${encodeURIComponent(sessionID)}/rerun`, creds, { method: 'POST' })
+}
+
 // GET /api/events/:eventID/wait — long-poll for a specific event result
 export async function waitEvent(creds, eventID) {
   return apiFetch(`/events/${encodeURIComponent(eventID)}/wait`, creds)
