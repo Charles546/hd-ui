@@ -182,8 +182,14 @@ export default function LogStreamPage({ provider = 'podman', podID = '', ghSlug 
   }, [paused])
 
   const pollOnce = useCallback(async () => {
-    if (!podID || pausedRef.current || doneRef.current || inFlightRef.current) {
+    if (!podID || pausedRef.current || doneRef.current) {
       return false
+    }
+
+    // React StrictMode can run overlapping effect loops in development.
+    // If a request is already running, skip this tick but keep polling.
+    if (inFlightRef.current) {
+      return true
     }
 
     try {
