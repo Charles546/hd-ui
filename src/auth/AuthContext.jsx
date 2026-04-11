@@ -19,24 +19,58 @@ function deriveRole(subject) {
 }
 
 const AuthContext = createContext(null)
+const AUTH_KEYS = {
+  creds: 'hd_creds',
+  subject: 'hd_subject',
+  profileName: 'hd_profile_name',
+}
+
+function getStoredItem(key) {
+  const localValue = localStorage.getItem(key)
+  if (localValue !== null) {
+    return localValue
+  }
+
+  // Backward compatibility: read legacy per-tab session values.
+  return sessionStorage.getItem(key)
+}
+
+function setStoredItem(key, value) {
+  localStorage.setItem(key, value)
+  sessionStorage.setItem(key, value)
+}
+
+function removeStoredItem(key) {
+  localStorage.removeItem(key)
+  sessionStorage.removeItem(key)
+}
+
+function hydrateAuthState() {
+  try {
+    const storedCreds = getStoredItem(AUTH_KEYS.creds)
+    const parsedCreds = storedCreds ? JSON.parse(storedCreds) : null
+    const storedSubject = getStoredItem(AUTH_KEYS.subject)
+    const storedProfileName = getStoredItem(AUTH_KEYS.profileName)
+
+    return {
+      creds: parsedCreds,
+      subject: storedSubject || null,
+      profileName: storedProfileName || null,
+    }
+  } catch {
+    return { creds: null, subject: null, profileName: null }
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [creds, setCreds] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem('hd_creds')
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
-  })
-
-  const [subject, setSubject] = useState(() => sessionStorage.getItem('hd_subject') || null)
-  const [profileName, setProfileName] = useState(() => sessionStorage.getItem('hd_profile_name') || null)
+  const [creds, setCreds] = useState(() => hydrateAuthState().creds)
+  const [subject, setSubject] = useState(() => hydrateAuthState().subject)
+  const [profileName, setProfileName] = useState(() => hydrateAuthState().profileName)
 
   const loadProfile = useCallback(async (activeCreds) => {
     if (!activeCreds) {
       setProfileName(null)
-      sessionStorage.removeItem('hd_profile_name')
+      removeStoredItem(AUTH_KEYS.profileName)
 
       return
     }
@@ -46,21 +80,21 @@ export function AuthProvider({ children }) {
       const nextProfileName = profile?.profile_name || null
       setProfileName(nextProfileName)
       if (nextProfileName) {
-        sessionStorage.setItem('hd_profile_name', nextProfileName)
+        setStoredItem(AUTH_KEYS.profileName, nextProfileName)
       } else {
-        sessionStorage.removeItem('hd_profile_name')
+        removeStoredItem(AUTH_KEYS.profileName)
       }
     } catch {
       setProfileName(null)
-      sessionStorage.removeItem('hd_profile_name')
+      removeStoredItem(AUTH_KEYS.profileName)
     }
   }, [])
 
   const login = useCallback((newCreds, resolvedSubject) => {
     setCreds(newCreds)
     setSubject(resolvedSubject)
-    sessionStorage.setItem('hd_creds', JSON.stringify(newCreds))
-    sessionStorage.setItem('hd_subject', resolvedSubject || '')
+    setStoredItem(AUTH_KEYS.creds, JSON.stringify(newCreds))
+    setStoredItem(AUTH_KEYS.subject, resolvedSubject || '')
     void loadProfile(newCreds)
   }, [loadProfile])
 
@@ -92,9 +126,21 @@ export function AuthProvider({ children }) {
     setCreds(null)
     setSubject(null)
     setProfileName(null)
-    sessionStorage.removeItem('hd_creds')
-    sessionStorage.removeItem('hd_subject')
-    sessionStorage.removeItem('hd_profile_name')
+    removeStoredItem(AUTH_KEYS.creds)
+    removeStoredItem(AUTH_KEYS.subject)
+    removeStoredItem(AUTH_KEYS.profileName)
+  }, [])
+
+  useEffect(() => {
+    // Migrate legacy session-only values into shared local storage.
+    for (const key of Object.values(AUTH_KEYS)) {
+      if (localStorage.getItem(key) === null) {
+        const legacy = sessionStorage.getItem(key)
+        if (legacy !== null) {
+          localStorage.setItem(key, legacy)
+        }
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -115,13 +161,32 @@ export function AuthProvider({ children }) {
         }
 
         const next = { ...current, token: rotatedJWT }
-        sessionStorage.setItem('hd_creds', JSON.stringify(next))
+        setStoredItem(AUTH_KEYS.creds, JSON.stringify(next))
         return next
       })
     })
 
     return () => {
       setTokenRotationHandler(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (!Object.values(AUTH_KEYS).includes(event.key)) {
+        return
+      }
+
+      const next = hydrateAuthState()
+      setCreds(next.creds)
+      setSubject(next.subject)
+      setProfileName(next.profileName)
+    }
+
+    window.addEventListener('storage', onStorage)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 
