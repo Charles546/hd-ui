@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { listEvents, rerunEventSession } from '../api'
+import { cancelEventSession, listEvents, pauseEventSession, rerunEventSession, resumeEventSession } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import SessionCard from './SessionCard'
 
@@ -330,6 +330,57 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
     }
   }, [creds, fetchSessions])
 
+  const handlePauseSession = useCallback(async ({ sessionID }) => {
+    if (!sessionID) {
+      return
+    }
+
+    try {
+      setError('')
+      await pauseEventSession(creds, sessionID)
+      setInfo(`Pause requested for session ${sessionID}.`)
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to pause workflow')
+    }
+  }, [creds, fetchSessions])
+
+  const handleResumeSession = useCallback(async ({ sessionID }) => {
+    if (!sessionID) {
+      return
+    }
+
+    try {
+      setError('')
+      await resumeEventSession(creds, sessionID)
+      setInfo(`Resume requested for session ${sessionID}.`)
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to resume workflow')
+    }
+  }, [creds, fetchSessions])
+
+  const handleCancelSession = useCallback(async ({ sessionID }) => {
+    if (!sessionID) {
+      return
+    }
+    if (!window.confirm(`Cancel session ${sessionID}?`)) {
+      return
+    }
+
+    try {
+      setError('')
+      await cancelEventSession(creds, sessionID)
+      setInfo(`Cancel requested for session ${sessionID}.`)
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to cancel workflow')
+    }
+  }, [creds, fetchSessions])
+
   useEffect(() => {
     fetchSessions('initial')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -452,6 +503,9 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
               isChild={depth > 0}
               onOpenLogStream={onOpenLogStream}
               onRerunSession={handleRerunSession}
+              onPauseSession={handlePauseSession}
+              onResumeSession={handleResumeSession}
+              onCancelSession={handleCancelSession}
             />
           </div>
           {shouldShowToggle && (

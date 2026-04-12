@@ -158,6 +158,24 @@ export async function rerunEventSession(creds, sessionID) {
   return apiFetch(`/events/${encodeURIComponent(sessionID)}/rerun`, creds, { method: 'POST' })
 }
 
+// POST /api/events/:sessionID/pause — request pause at next safe checkpoint
+export async function pauseEventSession(creds, sessionID) {
+  return apiFetch(`/events/${encodeURIComponent(sessionID)}/pause`, creds, { method: 'POST' })
+}
+
+// POST /api/events/:sessionID/resume — resume a previously paused session
+export async function resumeEventSession(creds, sessionID) {
+  return apiFetch(`/events/${encodeURIComponent(sessionID)}/resume`, creds, { method: 'POST' })
+}
+
+// POST /api/events/:sessionID/cancel — request cancel for a running session
+export async function cancelEventSession(creds, sessionID, reason = '') {
+  return apiFetch(`/events/${encodeURIComponent(sessionID)}/cancel`, creds, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
 // GET /api/events/:eventID/wait — long-poll for a specific event result
 export async function waitEvent(creds, eventID) {
   return apiFetch(`/events/${encodeURIComponent(eventID)}/wait`, creds)

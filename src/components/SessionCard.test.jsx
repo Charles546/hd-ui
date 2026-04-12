@@ -112,4 +112,62 @@ describe('SessionCard', () => {
       eventName: 'demo',
     })
   })
+
+  it('shows re-run button for cancelled session', () => {
+    const onRerunSession = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            state: 'cancelled',
+            rerun: { available: true },
+          },
+        })}
+        onRerunSession={onRerunSession}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /re-run workflow/i }))
+
+    expect(onRerunSession).toHaveBeenCalledWith({
+      sessionID: 'sess-1',
+      eventID: 'evt-1',
+      eventName: 'demo',
+    })
+  })
+
+  it('shows pause and cancel buttons for active session and triggers handlers', () => {
+    const onPauseSession = vi.fn()
+    const onCancelSession = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({ data: { state: 'active' } })}
+        onPauseSession={onPauseSession}
+        onCancelSession={onCancelSession}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /pause workflow/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel workflow/i }))
+
+    expect(onPauseSession).toHaveBeenCalledWith({ sessionID: 'sess-1' })
+    expect(onCancelSession).toHaveBeenCalledWith({ sessionID: 'sess-1' })
+  })
+
+  it('shows resume button for paused session and triggers handler', () => {
+    const onResumeSession = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({ data: { state: 'paused' } })}
+        onResumeSession={onResumeSession}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /resume workflow/i }))
+
+    expect(onResumeSession).toHaveBeenCalledWith({ sessionID: 'sess-1' })
+  })
 })
