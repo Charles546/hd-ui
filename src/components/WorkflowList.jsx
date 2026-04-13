@@ -485,13 +485,13 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
     const id = getSessionID(session)
     const childItems = id ? (children.get(id) || []) : []
     const hasChildren = childItems.length > 0
-    const isDone = session?.data?.state === 'done'
-    const visibleLevels = isDone ? 1 : DEFAULT_VISIBLE_LEVELS
+    const isTerminal = session?.data?.state === 'done' || session?.data?.state === 'cancelled'
+    const visibleLevels = isTerminal ? 1 : DEFAULT_VISIBLE_LEVELS
     const showChildrenByDefault = depth < (visibleLevels - 1)
     const isExpanded = !!expanded[id]
     const showChildren = hasChildren && (showChildrenByDefault || isExpanded)
-    const isRootDone = depth === 0 && isDone && hasChildren
-    const shouldShowToggle = hasChildren && (!showChildrenByDefault || isRootDone)
+    const isRootTerminal = depth === 0 && isTerminal && hasChildren
+    const shouldShowToggle = hasChildren && (!showChildrenByDefault || isRootTerminal)
     const indent = depth * 20
 
     return (

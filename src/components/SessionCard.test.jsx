@@ -137,6 +137,32 @@ describe('SessionCard', () => {
     })
   })
 
+  it('shows collapsed performing details for cancelled session and expands them', () => {
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            state: 'cancelled',
+          },
+          labels: {
+            status: 'cancelled',
+          },
+          performing: ['step-1', 'step-2', 'step-3', 'step-4'],
+        })}
+      />,
+    )
+
+    expect(screen.queryByText('step-1')).not.toBeInTheDocument()
+    expect(screen.getByText('step-2')).toBeInTheDocument()
+    expect(screen.getByText('step-3')).toBeInTheDocument()
+    expect(screen.getByText('step-4')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /show last 3/i }))
+
+    expect(screen.getByText('step-1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /collapse/i })).toBeInTheDocument()
+  })
+
   it('shows pause and cancel buttons for active session and triggers handlers', () => {
     const onPauseSession = vi.fn()
     const onCancelSession = vi.fn()

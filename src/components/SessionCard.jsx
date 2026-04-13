@@ -107,8 +107,9 @@ export default function SessionCard({
   const showStatusBadge = isTerminal
   const isSucceeded = status === 'success'
   const isFailedOrErrored = status === 'failure' || status === 'error'
+  const isCancelled = status === 'cancelled' || state === 'cancelled'
   const displayedPerforming = performing || []
-  const showPerforming = displayedPerforming.length > 0 && (isLive || isFailedOrErrored)
+  const showPerforming = displayedPerforming.length > 0 && (isLive || isFailedOrErrored || isCancelled)
   const stateColor = STATE_COLOR[state] || '#94a3b8'
   const statusColor = STATUS_COLOR[status] || null
   const isNoop = !!(data?.is_noop || session?.is_noop)
