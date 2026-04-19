@@ -187,6 +187,9 @@ export async function getPodLogChunk(creds, podID, params = {}) {
   if (params.provider) {
     query.set('provider', String(params.provider))
   }
+  if (params.providerData && typeof params.providerData === 'object') {
+    query.set('provider_data', JSON.stringify(params.providerData))
+  }
   if (params.waitSeconds !== undefined && params.waitSeconds !== null) {
     query.set('wait_seconds', String(params.waitSeconds))
   }

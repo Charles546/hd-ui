@@ -89,6 +89,37 @@ describe('SessionCard', () => {
     })
   })
 
+  it('passes provider_data through log stream payload', () => {
+    const onOpenLogStream = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            log_stream: {
+              provider: 'kubernetes',
+              pod_id: 'job-abc',
+              provider_data: { system: 'k8s_default' },
+              gh_slug: 'org/repo',
+              stream_token: 'signed-token',
+            },
+          },
+        })}
+        onOpenLogStream={onOpenLogStream}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '📜' }))
+
+    expect(onOpenLogStream).toHaveBeenCalledWith({
+      provider: 'kubernetes',
+      podID: 'job-abc',
+      providerData: { system: 'k8s_default' },
+      ghSlug: 'org/repo',
+      streamToken: 'signed-token',
+    })
+  })
+
   it('shows re-run button and calls handler with session metadata', () => {
     const onRerunSession = vi.fn()
 
