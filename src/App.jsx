@@ -12,15 +12,35 @@ const s = {
   main: { maxWidth: 900, margin: '0 auto', padding: '32px 24px' },
 }
 
+function parseProviderDataQuery(raw) {
+  const value = String(raw || '').trim()
+  if (!value) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
 function parseRouteLocation() {
   const { pathname, search } = window.location
   const params = new URLSearchParams(search)
 
   if (params.get('view') === 'log-stream') {
+    const providerData = parseProviderDataQuery(params.get('provider_data'))
     return {
       view: 'log-stream',
       provider: (params.get('provider') || 'podman').trim() || 'podman',
       podID: (params.get('pod') || '').trim(),
+      providerData,
       ghSlug: (params.get('gh') || '').trim(),
       streamToken: (params.get('stream_token') || '').trim(),
     }
@@ -49,11 +69,13 @@ function parseRouteLocation() {
     const podID = decodeURIComponent(podPart || '').trim()
     const ghSlug = (params.get('gh') || '').trim()
     const streamToken = (params.get('stream_token') || '').trim()
+    const providerData = parseProviderDataQuery(params.get('provider_data'))
 
     return {
       view: 'log-stream',
       provider: provider || 'podman',
       podID,
+      providerData,
       ghSlug,
       streamToken,
     }
@@ -63,7 +85,7 @@ function parseRouteLocation() {
     return { view: 'github-events', ghSlug: (params.get('gh') || '').trim() }
   }
 
-  return { view: 'events', ghSlug: '', provider: '', podID: '', streamToken: '' }
+  return { view: 'events', ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
 }
 
 function buildGitHubEventsPath(ghSlug) {
@@ -84,11 +106,14 @@ function buildGitHubSecretsPath(ghSlug) {
   return `/gh/secrets/${normalized.split('/').map((part) => encodeURIComponent(part)).join('/')}`
 }
 
-function buildLogStreamPath(provider, podID, ghSlug, streamToken) {
+function buildLogStreamPath(provider, podID, providerData, ghSlug, streamToken) {
   const query = new URLSearchParams()
   query.set('view', 'log-stream')
   query.set('provider', String(provider || 'podman').trim() || 'podman')
   query.set('pod', String(podID || '').trim())
+  if (providerData && typeof providerData === 'object') {
+    query.set('provider_data', JSON.stringify(providerData))
+  }
   if (ghSlug) {
     query.set('gh', String(ghSlug).replace(/^\/+/, '').trim())
   }
@@ -105,6 +130,7 @@ export default function App() {
   const [ghSlug, setGhSlug] = useState(() => parseRouteLocation().ghSlug)
   const [logProvider, setLogProvider] = useState(() => parseRouteLocation().provider || 'podman')
   const [logPodID, setLogPodID] = useState(() => parseRouteLocation().podID || '')
+  const [logProviderData, setLogProviderData] = useState(() => parseRouteLocation().providerData || null)
   const [logStreamToken, setLogStreamToken] = useState(() => parseRouteLocation().streamToken || '')
   const [showGlobalEventsTab, setShowGlobalEventsTab] = useState(true)
 
@@ -115,6 +141,7 @@ export default function App() {
       setGhSlug(route.ghSlug)
       setLogProvider(route.provider || 'podman')
       setLogPodID(route.podID || '')
+      setLogProviderData(route.providerData || null)
       setLogStreamToken(route.streamToken || '')
     }
 
@@ -154,14 +181,14 @@ export default function App() {
       targetPath = buildGitHubSecretsPath(ghSlug)
     }
     if (view === 'log-stream') {
-      targetPath = buildLogStreamPath(logProvider, logPodID, ghSlug, logStreamToken)
+      targetPath = buildLogStreamPath(logProvider, logPodID, logProviderData, ghSlug, logStreamToken)
     }
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {
       window.history.replaceState({}, '', targetPath)
     }
-  }, [view, ghSlug, isGitHubSession, logProvider, logPodID, logStreamToken])
+  }, [view, ghSlug, isGitHubSession, logProvider, logPodID, logProviderData, logStreamToken])
 
   if (window.location.pathname === '/auth/github/callback') {
     return <GitHubCallback />
@@ -188,9 +215,10 @@ export default function App() {
     setView('github-events')
   }
 
-  const openLogStream = ({ provider, podID, ghSlug: targetGhSlug = '', streamToken = '' }) => {
+  const openLogStream = ({ provider, podID, providerData = null, ghSlug: targetGhSlug = '', streamToken = '' }) => {
     setLogProvider(provider || 'podman')
     setLogPodID(podID || '')
+    setLogProviderData(providerData)
     setLogStreamToken(streamToken || '')
     if (targetGhSlug) {
       setGhSlug(targetGhSlug)
@@ -215,8 +243,8 @@ export default function App() {
             ghSlug={ghSlug}
             onGhSlugChange={setGhSlug}
             onOpenSecrets={openGitHubSecrets}
-            onOpenLogStream={({ provider, podID, ghSlug: streamGhSlug = '', streamToken = '' }) => (
-              openLogStream({ provider, podID, ghSlug: streamGhSlug || ghSlug, streamToken })
+            onOpenLogStream={({ provider, podID, providerData = null, ghSlug: streamGhSlug = '', streamToken = '' }) => (
+              openLogStream({ provider, podID, providerData, ghSlug: streamGhSlug || ghSlug, streamToken })
             )}
           />
         )}
@@ -227,6 +255,7 @@ export default function App() {
           <LogStreamPage
             provider={logProvider}
             podID={logPodID}
+            providerData={logProviderData}
             ghSlug={ghSlug}
             streamToken={logStreamToken}
             onBackToEvents={openGitHubEvents}

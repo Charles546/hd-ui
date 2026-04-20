@@ -84,6 +84,25 @@ describe('getPodLogChunk', () => {
     expect(requestURL).toContain('provider=kubernetes')
     expect(requestURL).toContain('stream_token=signed-token-abc')
   })
+
+  it('sends provider_data as json query when provided', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ done: false, has_more: false, lines: [] }),
+    })
+
+    await getPodLogChunk({ type: 'token', token: 'abc' }, 'pod-4', {
+      provider: 'kubernetes',
+      providerData: { system: 'k8s_default' },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const requestURL = String(fetchMock.mock.calls[0][0])
+    expect(requestURL).toContain('provider=kubernetes')
+    expect(requestURL).toContain('provider_data=')
+  })
 })
 
 describe('completeGitHubLogin', () => {

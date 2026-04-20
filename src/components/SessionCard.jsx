@@ -129,9 +129,15 @@ export default function SessionCard({
 
     const podID = logStream?.pod_id || logStream?.podID || ''
     const provider = logStream?.provider || logStream?.runtime || 'podman'
+    const providerData = logStream?.provider_data && typeof logStream.provider_data === 'object'
+      ? logStream.provider_data
+      : null
     const streamToken = logStream?.stream_token || logStream?.token || ''
     const ghSlug = logStream?.gh_slug || ''
     const payload = { provider, podID }
+    if (providerData) {
+      payload.providerData = providerData
+    }
     if (streamToken) {
       payload.streamToken = streamToken
     }

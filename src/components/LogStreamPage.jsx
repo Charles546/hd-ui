@@ -112,7 +112,7 @@ function buildGitHubEventsPath(ghSlug) {
   return `/gh/events/${normalized.split('/').map((part) => encodeURIComponent(part)).join('/')}`
 }
 
-export default function LogStreamPage({ provider = 'podman', podID = '', ghSlug = '', streamToken = '', onBackToEvents = () => {} }) {
+export default function LogStreamPage({ provider = 'podman', podID = '', providerData = null, ghSlug = '', streamToken = '', onBackToEvents = () => {} }) {
   const { creds } = useAuth()
   const [lines, setLines] = useState([])
   const [cursor, setCursor] = useState(null)
@@ -196,6 +196,7 @@ export default function LogStreamPage({ provider = 'podman', podID = '', ghSlug 
       inFlightRef.current = true
       const chunk = await getPodLogChunk(creds, podID, {
         provider,
+        providerData,
         ghSlug,
         streamToken,
         waitSeconds: POLL_WAIT_SECONDS,
@@ -214,7 +215,7 @@ export default function LogStreamPage({ provider = 'podman', podID = '', ghSlug 
     } finally {
       inFlightRef.current = false
     }
-  }, [appendChunk, creds, ghSlug, podID, provider, streamToken])
+  }, [appendChunk, creds, ghSlug, podID, provider, providerData, streamToken])
 
   useEffect(() => {
     cursorRef.current = cursor
