@@ -26,6 +26,8 @@ const STATE_COLOR = {
   init:    '#94a3b8',
   active:  '#38bdf8',
   waiting: '#f6c90e',
+  paused:  '#f59e0b',
+  cancelling: '#f97316',
   done:    '#4ade80',
 }
 
@@ -33,6 +35,7 @@ const STATUS_COLOR = {
   success: '#4ade80',
   failure: '#f87171',
   error:   '#fb923c',
+  cancelled: '#f97316',
 }
 
 const LIVE_ACCENT = '#facc15'
@@ -86,17 +89,27 @@ const s = {
   desc: { fontSize: 13, color: '#64748b', marginBottom: 4 },
 }
 
-export default function SessionCard({ session, isChild = false, onOpenLogStream = null, onRerunSession = null }) {
+export default function SessionCard({
+  session,
+  isChild = false,
+  onOpenLogStream = null,
+  onRerunSession = null,
+  onPauseSession = null,
+  onResumeSession = null,
+  onCancelSession = null,
+}) {
   const [performingExpanded, setPerformingExpanded] = useState(false)
   const { data, labels, performing } = session
   const state = data?.state || 'unknown'
-  const isLive = state !== 'done'
+  const isTerminal = state === 'done' || state === 'cancelled'
+  const isLive = !isTerminal
   const status = labels?.status
-  const showStatusBadge = state === 'done'
+  const showStatusBadge = isTerminal
   const isSucceeded = status === 'success'
   const isFailedOrErrored = status === 'failure' || status === 'error'
+  const isCancelled = status === 'cancelled' || state === 'cancelled'
   const displayedPerforming = performing || []
-  const showPerforming = displayedPerforming.length > 0 && (isLive || isFailedOrErrored)
+  const showPerforming = displayedPerforming.length > 0 && (isLive || isFailedOrErrored || isCancelled)
   const stateColor = STATE_COLOR[state] || '#94a3b8'
   const statusColor = STATUS_COLOR[status] || null
   const isNoop = !!(data?.is_noop || session?.is_noop)
@@ -104,7 +117,10 @@ export default function SessionCard({ session, isChild = false, onOpenLogStream 
   const performingToShow = performingExpanded ? displayedPerforming : displayedPerforming.slice(-3)
   const logStream = data?.log_stream && typeof data.log_stream === 'object' ? data.log_stream : null
   const hasLogStream = !!(logStream?.pod_id || logStream?.podID)
-  const canRerun = state === 'done' && !!data?.session_id && !!(data?.rerun?.available || data?.can_rerun)
+  const canRerun = (state === 'done' || state === 'cancelled') && !!data?.session_id && !!(data?.rerun?.available || data?.can_rerun)
+  const canPause = !isTerminal && state !== 'paused' && state !== 'cancelling' && !!data?.session_id
+  const canResume = state === 'paused' && !!data?.session_id
+  const canCancel = !isTerminal && state !== 'cancelling' && !!data?.session_id
 
   const openLogStream = () => {
     if (!hasLogStream || typeof onOpenLogStream !== 'function') {
@@ -127,15 +143,45 @@ export default function SessionCard({ session, isChild = false, onOpenLogStream 
   }
 
   const rerunSession = () => {
-  if (!canRerun || typeof onRerunSession !== 'function') {
-    return
+    if (!canRerun || typeof onRerunSession !== 'function') {
+      return
+    }
+
+    onRerunSession({
+      sessionID: data?.session_id || '',
+      eventID: data?.event_id || '',
+      eventName: data?.event_name || '',
+    })
   }
 
-  onRerunSession({
-    sessionID: data?.session_id || '',
-    eventID: data?.event_id || '',
-    eventName: data?.event_name || '',
-  })
+  const pauseSession = () => {
+    if (!canPause || typeof onPauseSession !== 'function') {
+      return
+    }
+
+    onPauseSession({
+      sessionID: data?.session_id || '',
+    })
+  }
+
+  const resumeSession = () => {
+    if (!canResume || typeof onResumeSession !== 'function') {
+      return
+    }
+
+    onResumeSession({
+      sessionID: data?.session_id || '',
+    })
+  }
+
+  const cancelSession = () => {
+    if (!canCancel || typeof onCancelSession !== 'function') {
+      return
+    }
+
+    onCancelSession({
+      sessionID: data?.session_id || '',
+    })
   }
 
   return (
@@ -143,6 +189,63 @@ export default function SessionCard({ session, isChild = false, onOpenLogStream 
       <div style={s.header}>
         <span style={{ ...s.brief, ...(isLive ? s.liveBrief : null) }}>{data?.brief || 'Unnamed workflow'}</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {canPause && (
+            <button
+              onClick={pauseSession}
+              title='Pause workflow'
+              aria-label='Pause workflow'
+              style={{
+                border: '1px solid #3f4557',
+                background: '#151b26',
+                color: typeof onPauseSession === 'function' ? '#fcd34d' : '#64748b',
+                borderRadius: 6,
+                padding: '2px 8px',
+                cursor: typeof onPauseSession === 'function' ? 'pointer' : 'not-allowed',
+                fontSize: 13,
+              }}
+              disabled={typeof onPauseSession !== 'function'}
+            >
+              ||
+            </button>
+          )}
+          {canResume && (
+            <button
+              onClick={resumeSession}
+              title='Resume workflow'
+              aria-label='Resume workflow'
+              style={{
+                border: '1px solid #3f4557',
+                background: '#151b26',
+                color: typeof onResumeSession === 'function' ? '#93c5fd' : '#64748b',
+                borderRadius: 6,
+                padding: '2px 8px',
+                cursor: typeof onResumeSession === 'function' ? 'pointer' : 'not-allowed',
+                fontSize: 13,
+              }}
+              disabled={typeof onResumeSession !== 'function'}
+            >
+              ▶
+            </button>
+          )}
+          {canCancel && (
+            <button
+              onClick={cancelSession}
+              title='Cancel workflow'
+              aria-label='Cancel workflow'
+              style={{
+                border: '1px solid #3f4557',
+                background: '#151b26',
+                color: typeof onCancelSession === 'function' ? '#fca5a5' : '#64748b',
+                borderRadius: 6,
+                padding: '2px 8px',
+                cursor: typeof onCancelSession === 'function' ? 'pointer' : 'not-allowed',
+                fontSize: 13,
+              }}
+              disabled={typeof onCancelSession !== 'function'}
+            >
+              x
+            </button>
+          )}
           {canRerun && (
             <button
               onClick={rerunSession}

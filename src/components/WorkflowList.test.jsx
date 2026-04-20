@@ -5,10 +5,16 @@ import WorkflowList from './WorkflowList'
 
 const mockListEvents = vi.fn()
 const mockRerunEventSession = vi.fn()
+const mockPauseEventSession = vi.fn()
+const mockResumeEventSession = vi.fn()
+const mockCancelEventSession = vi.fn()
 
 vi.mock('../api', () => ({
 	listEvents: (...args) => mockListEvents(...args),
 	rerunEventSession: (...args) => mockRerunEventSession(...args),
+	pauseEventSession: (...args) => mockPauseEventSession(...args),
+	resumeEventSession: (...args) => mockResumeEventSession(...args),
+	cancelEventSession: (...args) => mockCancelEventSession(...args),
 }))
 
 vi.mock('../auth/AuthContext', () => ({
@@ -19,12 +25,27 @@ vi.mock('../auth/AuthContext', () => ({
 }))
 
 vi.mock('./SessionCard', () => ({
-	default: ({ session, onRerunSession }) => (
+	default: ({ session, onRerunSession, onPauseSession, onResumeSession, onCancelSession }) => (
 		<div>
 			<div>{session?.data?.brief || 'session'}</div>
 			{session?.data?.rerun?.available && typeof onRerunSession === 'function' && (
 				<button onClick={() => onRerunSession({ sessionID: session?.data?.session_id || '' })}>
 					Rerun {session?.data?.brief || 'session'}
+				</button>
+			)}
+			{session?.data?.state === 'active' && typeof onPauseSession === 'function' && (
+				<button onClick={() => onPauseSession({ sessionID: session?.data?.session_id || '' })}>
+					Pause {session?.data?.brief || 'session'}
+				</button>
+			)}
+			{session?.data?.state === 'paused' && typeof onResumeSession === 'function' && (
+				<button onClick={() => onResumeSession({ sessionID: session?.data?.session_id || '' })}>
+					Resume {session?.data?.brief || 'session'}
+				</button>
+			)}
+			{(session?.data?.state === 'active' || session?.data?.state === 'paused') && typeof onCancelSession === 'function' && (
+				<button onClick={() => onCancelSession({ sessionID: session?.data?.session_id || '' })}>
+					Cancel {session?.data?.brief || 'session'}
 				</button>
 			)}
 		</div>
@@ -53,6 +74,10 @@ describe('WorkflowList no-op filtering', () => {
 	beforeEach(() => {
 		mockListEvents.mockReset()
 		mockRerunEventSession.mockReset()
+		mockPauseEventSession.mockReset()
+		mockResumeEventSession.mockReset()
+		mockCancelEventSession.mockReset()
+		vi.spyOn(window, 'confirm').mockReturnValue(true)
 	})
 
 	it('hides successful no-op sessions by default', async () => {
@@ -93,6 +118,30 @@ describe('WorkflowList no-op filtering', () => {
 		await waitFor(() => {
 			expect(mockRerunEventSession).toHaveBeenCalledTimes(1)
 			expect(screen.getByText(/Re-run started as session sess-99/i)).toBeInTheDocument()
+		})
+	})
+
+	it('pauses, resumes, and cancels sessions and refreshes list', async () => {
+		mockListEvents.mockResolvedValueOnce([
+			{ ...makeSession('6', 'active session', { isNoop: false, status: 'success' }), data: { ...makeSession('6', 'active session').data, state: 'active' } },
+			{ ...makeSession('7', 'paused session', { isNoop: false, status: 'success' }), data: { ...makeSession('7', 'paused session').data, state: 'paused' } },
+		])
+		mockListEvents.mockResolvedValue([])
+		mockPauseEventSession.mockResolvedValue({})
+		mockResumeEventSession.mockResolvedValue({})
+		mockCancelEventSession.mockResolvedValue({})
+
+		render(<WorkflowList />)
+
+		await waitFor(() => expect(screen.getByText('active session')).toBeInTheDocument())
+		await userEvent.click(screen.getByRole('button', { name: /pause active session/i }))
+		await userEvent.click(screen.getByRole('button', { name: /resume paused session/i }))
+		await userEvent.click(screen.getByRole('button', { name: /cancel active session/i }))
+
+		await waitFor(() => {
+			expect(mockPauseEventSession).toHaveBeenCalledTimes(1)
+			expect(mockResumeEventSession).toHaveBeenCalledTimes(1)
+			expect(mockCancelEventSession).toHaveBeenCalledTimes(1)
 		})
 	})
 })
