@@ -99,9 +99,9 @@ export function AuthProvider({ children }) {
   }, [loadProfile])
 
   const loginWithGitHub = useCallback(() => {
-    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
+    const clientId = window.HD_CONFIG?.GITHUB_CLIENT_ID || import.meta.env.VITE_GITHUB_CLIENT_ID
     if (!clientId) {
-      throw new Error('Missing VITE_GITHUB_CLIENT_ID')
+      throw new Error('Missing GITHUB_CLIENT_ID')
     }
 
     const redirectUri = `${window.location.origin}/auth/github/callback`
