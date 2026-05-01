@@ -26,7 +26,7 @@ const s = {
 }
 
 export default function LoginForm() {
-  const { login, loginWithGitHub } = useAuth()
+  const { login, loginWithGitHub, loginWithSAML } = useAuth()
   const [scheme, setScheme] = useState('token')
   const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
@@ -34,6 +34,7 @@ export default function LoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [githubError, setGithubError] = useState('')
+  const [samlError, setSamlError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -69,6 +70,20 @@ export default function LoginForm() {
     }
   }
 
+  function handleSAMLLogin() {
+    setSamlError('')
+
+    try {
+      loginWithSAML()
+    } catch (err) {
+      setSamlError(err.message || 'SAML login is not configured.')
+    }
+  }
+
+  function handleOpenSAMLMetadata() {
+    window.location.assign('/auth/saml/metadata')
+  }
+
   return (
     <div style={s.wrap}>
       <div style={s.card}>
@@ -80,6 +95,14 @@ export default function LoginForm() {
 
         <button style={{ ...s.btn, marginBottom: 16 }} type="button" onClick={handleGitHubLogin}>
           Continue With GitHub
+        </button>
+
+        <button style={{ ...s.btn, marginBottom: 16, background: '#4a90d9', color: '#fff' }} type="button" onClick={handleSAMLLogin}>
+          Continue With SAML SSO
+        </button>
+
+        <button style={{ ...s.btn, marginBottom: 16, background: '#263445', color: '#cfe6ff' }} type="button" onClick={handleOpenSAMLMetadata}>
+          View SAML SP Metadata
         </button>
 
         <div style={s.tabs}>
@@ -115,7 +138,7 @@ export default function LoginForm() {
           </button>
         </form>
 
-        {(error || githubError) && <div style={s.err}>{error || githubError}</div>}
+        {(error || githubError || samlError) && <div style={s.err}>{error || githubError || samlError}</div>}
       </div>
     </div>
   )

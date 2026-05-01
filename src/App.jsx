@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import GitHubCallback from './auth/GitHubCallback'
+import SAMLCallback from './auth/SAMLCallback'
+import SAMLMetadata from './auth/SAMLMetadata'
 import GitHubSecretsPage from './components/GitHubSecretsPage'
 import GitHubWorkflowList from './components/GitHubWorkflowList'
 import LogStreamPage from './components/LogStreamPage'
@@ -173,6 +175,10 @@ export default function App() {
       return
     }
 
+    if (window.location.pathname === '/auth/saml/callback') {
+      return
+    }
+
     let targetPath = '/'
     if (isGitHubSession && view === 'github-events') {
       targetPath = buildGitHubEventsPath(ghSlug)
@@ -192,6 +198,14 @@ export default function App() {
 
   if (window.location.pathname === '/auth/github/callback') {
     return <GitHubCallback />
+  }
+
+  if (window.location.pathname === '/auth/saml/callback') {
+    return <SAMLCallback />
+  }
+
+  if (window.location.pathname === '/auth/saml/metadata') {
+    return <SAMLMetadata />
   }
 
   if (!creds) return <LoginForm />

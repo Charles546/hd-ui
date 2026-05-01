@@ -220,6 +220,11 @@ export async function getUserProfile(creds) {
   return apiFetch('/user/profile', creds)
 }
 
+// GET /api/auth/saml/login — initiate SAML login; redirects browser to IdP
+export function startSAMLLogin() {
+  window.location.assign('/api/auth/saml/login')
+}
+
 // GET /api/auth/github/callback — exchange GitHub OAuth code for Honeydipper token
 export async function completeGitHubLogin(code) {
   if (inFlightGitHubCode === code && inFlightGitHubLogin) {

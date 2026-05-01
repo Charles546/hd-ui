@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { completeGitHubLogin, getUserProfile, setTokenRotationHandler } from '../api'
+import { completeGitHubLogin, getUserProfile, setTokenRotationHandler, startSAMLLogin } from '../api'
 
 const ROLE_PERMISSIONS = {
   admin:    ['events:read', 'events:write'],
@@ -122,6 +122,19 @@ export function AuthProvider({ children }) {
     return data
   }, [login])
 
+  const loginWithSAML = useCallback(() => {
+    startSAMLLogin()
+  }, [])
+
+  const finishSAMLLogin = useCallback((token, subject, profileName) => {
+    const newCreds = { type: 'token', token, authProvider: 'auth-saml' }
+    login(newCreds, subject || 'user')
+    if (profileName) {
+      setProfileName(profileName)
+      setStoredItem(AUTH_KEYS.profileName, profileName)
+    }
+  }, [login])
+
   const logout = useCallback(() => {
     setCreds(null)
     setSubject(null)
@@ -193,11 +206,12 @@ export function AuthProvider({ children }) {
   const role = deriveRole(subject)
   const permissions = ROLE_PERMISSIONS[role] ?? []
   const isGitHubSession = creds?.authProvider === 'auth-github'
+  const isSAMLSession = creds?.authProvider === 'auth-saml'
 
   const can = useCallback((permission) => permissions.includes(permission), [permissions])
 
   return (
-    <AuthContext.Provider value={{ creds, subject, profileName, role, isGitHubSession, can, login, loginWithGitHub, finishGitHubLogin, logout }}>
+    <AuthContext.Provider value={{ creds, subject, profileName, role, isGitHubSession, isSAMLSession, can, login, loginWithGitHub, finishGitHubLogin, loginWithSAML, finishSAMLLogin, logout }}>
       {children}
     </AuthContext.Provider>
   )
