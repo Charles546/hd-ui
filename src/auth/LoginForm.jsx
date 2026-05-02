@@ -25,9 +25,28 @@ const s = {
   err: { color: '#f87171', fontSize: 13, marginTop: 12, textAlign: 'center' },
 }
 
+/**
+ * Returns a Set of enabled auth method keys.
+ * If ENABLED_AUTH_METHODS is empty/unset, all methods are enabled.
+ * Supported keys: 'github', 'saml', 'token', 'basic'
+ */
+function getEnabledMethods() {
+  const raw = window.HD_CONFIG?.ENABLED_AUTH_METHODS || import.meta.env.VITE_ENABLED_AUTH_METHODS || ''
+  if (!raw.trim()) {
+    return new Set(['github', 'saml', 'token', 'basic'])
+  }
+  return new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
+}
+
+const ENABLED = getEnabledMethods()
+
 export default function LoginForm() {
   const { login, loginWithGitHub, loginWithSAML } = useAuth()
-  const [scheme, setScheme] = useState('token')
+
+  // Determine initial scheme based on what's enabled
+  const defaultScheme = ENABLED.has('token') ? 'token' : ENABLED.has('basic') ? 'basic' : null
+
+  const [scheme, setScheme] = useState(defaultScheme)
   const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -35,6 +54,9 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [githubError, setGithubError] = useState('')
   const [samlError, setSamlError] = useState('')
+
+  const showCredentialForm = ENABLED.has('token') || ENABLED.has('basic')
+  const showTabs = ENABLED.has('token') && ENABLED.has('basic')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -46,7 +68,6 @@ export default function LoginForm() {
       : { type: 'basic', username, password }
 
     try {
-      // Validate credentials by making a real API call
       await listEvents(creds)
       login(creds, username || 'user')
     } catch (err) {
@@ -62,7 +83,6 @@ export default function LoginForm() {
 
   function handleGitHubLogin() {
     setGithubError('')
-
     try {
       loginWithGitHub()
     } catch (err) {
@@ -72,7 +92,6 @@ export default function LoginForm() {
 
   function handleSAMLLogin() {
     setSamlError('')
-
     try {
       loginWithSAML()
     } catch (err) {
@@ -93,50 +112,61 @@ export default function LoginForm() {
         </div>
         <div style={s.sub}>Sign in to view in-fly workflows</div>
 
-        <button style={{ ...s.btn, marginBottom: 16 }} type="button" onClick={handleGitHubLogin}>
-          Continue With GitHub
-        </button>
-
-        <button style={{ ...s.btn, marginBottom: 16, background: '#4a90d9', color: '#fff' }} type="button" onClick={handleSAMLLogin}>
-          Continue With SAML SSO
-        </button>
-
-        <button style={{ ...s.btn, marginBottom: 16, background: '#263445', color: '#cfe6ff' }} type="button" onClick={handleOpenSAMLMetadata}>
-          View SAML SP Metadata
-        </button>
-
-        <div style={s.tabs}>
-          <button style={s.tab(scheme === 'token')} onClick={() => setScheme('token')}>Bearer Token</button>
-          <button style={s.tab(scheme === 'basic')} onClick={() => setScheme('basic')}>Basic Auth</button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {scheme === 'token' ? (
-            <>
-              <label style={s.label}>Token</label>
-              <input
-                style={s.input} type="password" value={token} autoFocus
-                onChange={e => setToken(e.target.value)} placeholder="Bearer token" required
-              />
-            </>
-          ) : (
-            <>
-              <label style={s.label}>Username</label>
-              <input
-                style={s.input} type="text" value={username} autoFocus
-                onChange={e => setUsername(e.target.value)} placeholder="Username" required
-              />
-              <label style={s.label}>Password</label>
-              <input
-                style={s.input} type="password" value={password}
-                onChange={e => setPassword(e.target.value)} placeholder="Password" required
-              />
-            </>
-          )}
-          <button style={s.btn} type="submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
+        {ENABLED.has('github') && (
+          <button style={{ ...s.btn, marginBottom: 16 }} type="button" onClick={handleGitHubLogin}>
+            Continue With GitHub
           </button>
-        </form>
+        )}
+
+        {ENABLED.has('saml') && (
+          <>
+            <button style={{ ...s.btn, marginBottom: 16, background: '#4a90d9', color: '#fff' }} type="button" onClick={handleSAMLLogin}>
+              Continue With SAML SSO
+            </button>
+            <button style={{ ...s.btn, marginBottom: 16, background: '#263445', color: '#cfe6ff' }} type="button" onClick={handleOpenSAMLMetadata}>
+              View SAML SP Metadata
+            </button>
+          </>
+        )}
+
+        {showCredentialForm && (
+          <>
+            {showTabs && (
+              <div style={s.tabs}>
+                <button style={s.tab(scheme === 'token')} onClick={() => setScheme('token')}>Bearer Token</button>
+                <button style={s.tab(scheme === 'basic')} onClick={() => setScheme('basic')}>Basic Auth</button>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              {scheme === 'token' ? (
+                <>
+                  <label style={s.label}>Token</label>
+                  <input
+                    style={s.input} type="password" value={token} autoFocus
+                    onChange={e => setToken(e.target.value)} placeholder="Bearer token" required
+                  />
+                </>
+              ) : (
+                <>
+                  <label style={s.label}>Username</label>
+                  <input
+                    style={s.input} type="text" value={username} autoFocus
+                    onChange={e => setUsername(e.target.value)} placeholder="Username" required
+                  />
+                  <label style={s.label}>Password</label>
+                  <input
+                    style={s.input} type="password" value={password}
+                    onChange={e => setPassword(e.target.value)} placeholder="Password" required
+                  />
+                </>
+              )}
+              <button style={s.btn} type="submit" disabled={loading}>
+                {loading ? 'Signing in…' : 'Sign In'}
+              </button>
+            </form>
+          </>
+        )}
 
         {(error || githubError || samlError) && <div style={s.err}>{error || githubError || samlError}</div>}
       </div>
