@@ -154,23 +154,39 @@ export async function postEvent(creds, payload) {
 }
 
 // POST /api/events/:sessionID/rerun — rerun a session from preserved inputs
-export async function rerunEventSession(creds, sessionID) {
-  return apiFetch(`/events/${encodeURIComponent(sessionID)}/rerun`, creds, { method: 'POST' })
+export async function rerunEventSession(creds, sessionID, ghSlug = '') {
+  const normalizedSlug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  const path = normalizedSlug
+    ? `/gh/events/${encodeURIComponent(sessionID)}/rerun/${normalizedSlug.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+    : `/events/${encodeURIComponent(sessionID)}/rerun`
+  return apiFetch(path, creds, { method: 'POST' })
 }
 
 // POST /api/events/:sessionID/pause — request pause at next safe checkpoint
-export async function pauseEventSession(creds, sessionID) {
-  return apiFetch(`/events/${encodeURIComponent(sessionID)}/pause`, creds, { method: 'POST' })
+export async function pauseEventSession(creds, sessionID, ghSlug = '') {
+  const normalizedSlug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  const path = normalizedSlug
+    ? `/gh/events/${encodeURIComponent(sessionID)}/pause/${normalizedSlug.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+    : `/events/${encodeURIComponent(sessionID)}/pause`
+  return apiFetch(path, creds, { method: 'POST' })
 }
 
 // POST /api/events/:sessionID/resume — resume a previously paused session
-export async function resumeEventSession(creds, sessionID) {
-  return apiFetch(`/events/${encodeURIComponent(sessionID)}/resume`, creds, { method: 'POST' })
+export async function resumeEventSession(creds, sessionID, ghSlug = '') {
+  const normalizedSlug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  const path = normalizedSlug
+    ? `/gh/events/${encodeURIComponent(sessionID)}/resume/${normalizedSlug.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+    : `/events/${encodeURIComponent(sessionID)}/resume`
+  return apiFetch(path, creds, { method: 'POST' })
 }
 
 // POST /api/events/:sessionID/interact — submit keyed interaction for waiting session
-export async function interactEventSession(creds, sessionID, key) {
-  return apiFetch(`/events/${encodeURIComponent(sessionID)}/interact`, creds, {
+export async function interactEventSession(creds, sessionID, key, ghSlug = '') {
+  const normalizedSlug = String(ghSlug || '').replace(/^\/+/, '').trim()
+  const path = normalizedSlug
+    ? `/gh/events/${encodeURIComponent(sessionID)}/interact/${normalizedSlug.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+    : `/events/${encodeURIComponent(sessionID)}/interact`
+  return apiFetch(path, creds, {
     method: 'POST',
     body: JSON.stringify({ key }),
   })

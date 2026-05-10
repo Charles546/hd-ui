@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { cancelEventSession, listGitHubEvents, pauseEventSession, rerunEventSession, resumeEventSession } from '../api'
+import { cancelEventSession, interactEventSession, listGitHubEvents, pauseEventSession, rerunEventSession, resumeEventSession } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import SessionCard from './SessionCard'
 
@@ -435,7 +435,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
 
     try {
       setError('')
-      const result = await rerunEventSession(creds, sessionID)
+      const result = await rerunEventSession(creds, sessionID, ghSlug)
       const nextSessionID = result?.sessionID || result?.session_id || ''
       setInfo(nextSessionID ? `Re-run started as session ${nextSessionID}.` : 'Re-run started.')
       await fetchSessions('poll')
@@ -443,7 +443,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
       setInfo('')
       setError(err?.message || 'Failed to re-run workflow')
     }
-  }, [creds, fetchSessions])
+  }, [creds, fetchSessions, ghSlug])
 
   const handlePauseSession = useCallback(async ({ sessionID }) => {
     if (!sessionID) {
@@ -452,14 +452,14 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
 
     try {
       setError('')
-      await pauseEventSession(creds, sessionID)
+      await pauseEventSession(creds, sessionID, ghSlug)
       setInfo(`Pause requested for session ${sessionID}.`)
       await fetchSessions('poll')
     } catch (err) {
       setInfo('')
       setError(err?.message || 'Failed to pause workflow')
     }
-  }, [creds, fetchSessions])
+  }, [creds, fetchSessions, ghSlug])
 
   const handleResumeSession = useCallback(async ({ sessionID }) => {
     if (!sessionID) {
@@ -468,14 +468,30 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
 
     try {
       setError('')
-      await resumeEventSession(creds, sessionID)
+      await resumeEventSession(creds, sessionID, ghSlug)
       setInfo(`Resume requested for session ${sessionID}.`)
       await fetchSessions('poll')
     } catch (err) {
       setInfo('')
       setError(err?.message || 'Failed to resume workflow')
     }
-  }, [creds, fetchSessions])
+  }, [creds, fetchSessions, ghSlug])
+
+  const handleInteractSession = useCallback(async ({ sessionID, key }) => {
+    if (!sessionID || !key) {
+      return
+    }
+
+    try {
+      setError('')
+      await interactEventSession(creds, sessionID, key, ghSlug)
+      setInfo(`Interaction "${key}" submitted for session ${sessionID}.`)
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to submit interaction')
+    }
+  }, [creds, fetchSessions, ghSlug])
 
   const handleCancelSession = useCallback(async ({ sessionID }) => {
     if (!sessionID) {
@@ -624,6 +640,7 @@ export default function GitHubWorkflowList({ ghSlug = '', onGhSlugChange = () =>
               onRerunSession={handleRerunSession}
               onPauseSession={handlePauseSession}
               onResumeSession={handleResumeSession}
+              onInteractSession={handleInteractSession}
               onCancelSession={handleCancelSession}
             />
           </div>

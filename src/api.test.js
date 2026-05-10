@@ -105,6 +105,7 @@ describe('getPodLogChunk', () => {
   })
 })
 
+
 describe('completeGitHubLogin', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -145,5 +146,22 @@ describe('interactEventSession', () => {
     expect(String(url)).toContain('/api/events/sess-1/interact')
     expect(options.method).toBe('POST')
     expect(options.body).toContain('"key":"approve"')
+  })
+
+  it('posts key payload to GH-scoped interact endpoint when ghSlug is provided', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ ok: true }),
+    })
+
+    await interactEventSession({ type: 'token', token: 'abc' }, 'sess-2', 'reject', 'my-org/my-repo')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/gh/events/sess-2/interact/my-org/my-repo')
+    expect(options.method).toBe('POST')
+    expect(options.body).toContain('"key":"reject"')
   })
 })
