@@ -109,6 +109,50 @@ function normalizeInteractiveOptions(raw) {
   return []
 }
 
+function normalizeInteractiveInteractions(raw) {
+  if (!raw) {
+    return []
+  }
+
+  const normalizeItem = (item) => {
+    if (!item || typeof item !== 'object') {
+      return null
+    }
+    const key = String(item.key || '').trim()
+    if (!key) {
+      return null
+    }
+
+    return {
+      key,
+      label: String(item.label || item.title || key),
+      user: String(item.user || '').trim(),
+      at: String(item.at || '').trim(),
+      style: normalizeInteractiveStyle(item.style),
+    }
+  }
+
+  if (Array.isArray(raw)) {
+    return raw.map(normalizeItem).filter(Boolean)
+  }
+
+  if (typeof raw === 'object') {
+    if (raw.key || raw.label || raw.title || raw.user || raw.at) {
+      const single = normalizeItem(raw)
+      return single ? [single] : []
+    }
+
+    return Object.entries(raw)
+      .map(([key, item]) => {
+        const itemObj = item && typeof item === 'object' ? item : {}
+        return normalizeItem({ key, ...itemObj })
+      })
+      .filter(Boolean)
+  }
+
+  return []
+}
+
 function formatTime(iso) {
   if (!iso) return null
   const d = new Date(iso)
@@ -163,6 +207,34 @@ const s = {
     alignItems: 'center',
   },
   interactiveTitle: { fontSize: 12, color: '#94a3b8', marginRight: 4 },
+  interactionHistory: {
+    marginTop: 8,
+    borderTop: '1px dashed #2d3148',
+    paddingTop: 8,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  interactionCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 10px',
+    borderRadius: 8,
+    border: '1px solid #2d3148',
+    background: '#141824',
+    width: '100%',
+    boxSizing: 'border-box',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  interactionLabel: { fontSize: 12, fontWeight: 600, color: '#e2e8f0' },
+  interactionMeta: { fontSize: 12, color: '#94a3b8' },
+  interactionEntry: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
   step: { fontSize: 12, color: '#94a3b8', padding: '2px 0', paddingLeft: 12, borderLeft: '2px solid #2d3148' },
   liveStep: { color: '#fde68a', borderLeft: `2px solid ${LIVE_ACCENT}` },
   desc: { fontSize: 13, color: '#64748b', marginBottom: 4 },
@@ -203,6 +275,7 @@ export default function SessionCard({
   const canCancel = !isTerminal && state !== 'cancelling' && !!data?.session_id
   const interactiveOptions = normalizeInteractiveOptions(data?.interactive_options)
   const canInteract = !isTerminal && !!data?.session_id && interactiveOptions.length > 0
+  const interactiveInteractions = normalizeInteractiveInteractions(data?.interactive_interactions || data?.interactive_interaction)
 
   const openLogStream = () => {
     if (!hasLogStream || typeof onOpenLogStream !== 'function') {
@@ -406,9 +479,9 @@ export default function SessionCard({
 
       <div style={s.meta}>
         {!isChild && data?.event_name && <div style={s.eventName}>Event: {data.event_name}</div>}
-        {!isChild && (data?.event_id || data?.session_id) && (
+        {(data?.event_id || data?.session_id) && (
           <div style={s.metaIds}>
-            {data?.event_id && <span>ID: {data.event_id}</span>}
+            {!isChild && data?.event_id && <span>ID: {data.event_id}</span>}
             {data?.session_id && <span>Session: {data.session_id}</span>}
           </div>
         )}
@@ -441,6 +514,21 @@ export default function SessionCard({
               </button>
             )
           })}
+        </div>
+      )}
+
+      {interactiveInteractions.length > 0 && (
+        <div style={s.interactionHistory}>
+          <span style={s.interactiveTitle}>Decisions:</span>
+          {interactiveInteractions.map((interaction, i) => (
+            <div key={`${interaction.key}-${interaction.at}-${i}`} style={s.interactionCard}>
+              <span style={s.badge((INTERACT_STYLE[interaction.style] || INTERACT_STYLE.normal).color)}>{interaction.label}</span>
+              <span style={s.interactionMeta}>
+                {interaction.user ? `by ${interaction.user}` : 'by unknown'}
+                {formatTime(interaction.at) ? ` on ${formatTime(interaction.at)}` : ''}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 

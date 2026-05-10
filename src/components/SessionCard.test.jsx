@@ -252,4 +252,38 @@ describe('SessionCard', () => {
     expect(onInteractSession).toHaveBeenCalledWith({ sessionID: 'sess-1', key: 'approve' })
     expect(onInteractSession).toHaveBeenCalledWith({ sessionID: 'sess-1', key: 'reject' })
   })
+
+  it('renders interaction history even after waiting state is over', () => {
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            state: 'done',
+            interactive_interactions: [
+              { key: 'approve', label: 'Approve', user: 'charles', at: '2026-05-10T12:00:00.000Z', style: 'approval' },
+            ],
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/decisions:/i)).toBeInTheDocument()
+    expect(screen.getByText('Approve')).toBeInTheDocument()
+    expect(screen.getByText(/by charles/i)).toBeInTheDocument()
+  })
+
+  it('shows child session ID in metadata', () => {
+    render(
+      <SessionCard
+        isChild
+        session={makeSession({
+          data: {
+            session_id: 'child-42',
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/Session: child-42/i)).toBeInTheDocument()
+  })
 })
