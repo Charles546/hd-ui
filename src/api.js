@@ -168,6 +168,14 @@ export async function resumeEventSession(creds, sessionID) {
   return apiFetch(`/events/${encodeURIComponent(sessionID)}/resume`, creds, { method: 'POST' })
 }
 
+// POST /api/events/:sessionID/interact — submit keyed interaction for waiting session
+export async function interactEventSession(creds, sessionID, key) {
+  return apiFetch(`/events/${encodeURIComponent(sessionID)}/interact`, creds, {
+    method: 'POST',
+    body: JSON.stringify({ key }),
+  })
+}
+
 // POST /api/events/:sessionID/cancel — request cancel for a running session
 export async function cancelEventSession(creds, sessionID, reason = '') {
   return apiFetch(`/events/${encodeURIComponent(sessionID)}/cancel`, creds, {

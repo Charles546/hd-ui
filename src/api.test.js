@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { completeGitHubLogin, getPodLogChunk } from './api'
+import { completeGitHubLogin, getPodLogChunk, interactEventSession } from './api'
 
 describe('getPodLogChunk', () => {
   beforeEach(() => {
@@ -122,5 +122,28 @@ describe('completeGitHubLogin', () => {
       status: 403,
       message: 'user not allowed by GitHub login restrictions',
     })
+  })
+})
+
+describe('interactEventSession', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('posts key payload to session interact endpoint', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ ok: true }),
+    })
+
+    await interactEventSession({ type: 'token', token: 'abc' }, 'sess-1', 'approve')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/events/sess-1/interact')
+    expect(options.method).toBe('POST')
+    expect(options.body).toContain('"key":"approve"')
   })
 })

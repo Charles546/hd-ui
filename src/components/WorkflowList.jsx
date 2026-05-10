@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { cancelEventSession, listEvents, pauseEventSession, rerunEventSession, resumeEventSession } from '../api'
+import { cancelEventSession, interactEventSession, listEvents, pauseEventSession, rerunEventSession, resumeEventSession } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import SessionCard from './SessionCard'
 
@@ -381,6 +381,22 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
     }
   }, [creds, fetchSessions])
 
+  const handleInteractSession = useCallback(async ({ sessionID, key }) => {
+    if (!sessionID || !key) {
+      return
+    }
+
+    try {
+      setError('')
+      await interactEventSession(creds, sessionID, key)
+      setInfo(`Interaction \"${key}\" submitted for session ${sessionID}.`)
+      await fetchSessions('poll')
+    } catch (err) {
+      setInfo('')
+      setError(err?.message || 'Failed to submit interaction')
+    }
+  }, [creds, fetchSessions])
+
   useEffect(() => {
     fetchSessions('initial')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -505,6 +521,7 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
               onRerunSession={handleRerunSession}
               onPauseSession={handlePauseSession}
               onResumeSession={handleResumeSession}
+              onInteractSession={handleInteractSession}
               onCancelSession={handleCancelSession}
             />
           </div>

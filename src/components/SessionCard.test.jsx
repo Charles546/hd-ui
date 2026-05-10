@@ -227,4 +227,29 @@ describe('SessionCard', () => {
 
     expect(onResumeSession).toHaveBeenCalledWith({ sessionID: 'sess-1' })
   })
+
+  it('renders interactive option buttons with labels and triggers keyed handler', () => {
+    const onInteractSession = vi.fn()
+
+    render(
+      <SessionCard
+        session={makeSession({
+          data: {
+            state: 'waiting',
+            interactive_options: [
+              { key: 'approve', label: 'Approve', style: 'approval' },
+              { key: 'reject', label: 'Reject', style: 'warning' },
+            ],
+          },
+        })}
+        onInteractSession={onInteractSession}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /interactive action: approve/i }))
+    fireEvent.click(screen.getByRole('button', { name: /interactive action: reject/i }))
+
+    expect(onInteractSession).toHaveBeenCalledWith({ sessionID: 'sess-1', key: 'approve' })
+    expect(onInteractSession).toHaveBeenCalledWith({ sessionID: 'sess-1', key: 'reject' })
+  })
 })

@@ -40,6 +40,75 @@ const STATUS_COLOR = {
 
 const LIVE_ACCENT = '#facc15'
 
+const INTERACT_STYLE = {
+  normal: {
+    borderColor: '#3f4557',
+    color: '#cbd5e1',
+    background: '#151b26',
+  },
+  warning: {
+    borderColor: '#854d0e',
+    color: '#fcd34d',
+    background: '#2b2112',
+  },
+  approval: {
+    borderColor: '#14532d',
+    color: '#86efac',
+    background: '#13261c',
+  },
+  danger: {
+    borderColor: '#7f1d1d',
+    color: '#fca5a5',
+    background: '#2b1618',
+  },
+}
+
+function normalizeInteractiveStyle(style) {
+  const name = String(style || 'normal').trim().toLowerCase()
+  return INTERACT_STYLE[name] ? name : 'normal'
+}
+
+function normalizeInteractiveOptions(raw) {
+  if (!raw) {
+    return []
+  }
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+        const key = String(item.key || '').trim()
+        if (!key) {
+          return null
+        }
+
+        return {
+          key,
+          label: String(item.label || item.title || key),
+          style: normalizeInteractiveStyle(item.style),
+        }
+      })
+      .filter(Boolean)
+  }
+
+  if (typeof raw === 'object') {
+    return Object.entries(raw)
+      .map(([key, item]) => {
+        const itemObj = item && typeof item === 'object' ? item : {}
+        return {
+          key,
+          label: String(itemObj.label || itemObj.title || key),
+          style: normalizeInteractiveStyle(itemObj.style),
+        }
+      })
+      .filter((item) => item.key)
+  }
+
+  return []
+}
+
 function formatTime(iso) {
   if (!iso) return null
   const d = new Date(iso)
@@ -84,6 +153,16 @@ const s = {
   timeLabel: { color: '#475569' },
   duration: { color: '#94a3b8', fontStyle: 'italic' },
   performing: { marginTop: 8 },
+  interactiveRow: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTop: '1px solid #2d3148',
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  interactiveTitle: { fontSize: 12, color: '#94a3b8', marginRight: 4 },
   step: { fontSize: 12, color: '#94a3b8', padding: '2px 0', paddingLeft: 12, borderLeft: '2px solid #2d3148' },
   liveStep: { color: '#fde68a', borderLeft: `2px solid ${LIVE_ACCENT}` },
   desc: { fontSize: 13, color: '#64748b', marginBottom: 4 },
@@ -96,6 +175,7 @@ export default function SessionCard({
   onRerunSession = null,
   onPauseSession = null,
   onResumeSession = null,
+  onInteractSession = null,
   onCancelSession = null,
 }) {
   const [performingExpanded, setPerformingExpanded] = useState(false)
@@ -121,6 +201,8 @@ export default function SessionCard({
   const canPause = !isTerminal && state !== 'paused' && state !== 'cancelling' && !!data?.session_id
   const canResume = state === 'paused' && !!data?.session_id
   const canCancel = !isTerminal && state !== 'cancelling' && !!data?.session_id
+  const interactiveOptions = normalizeInteractiveOptions(data?.interactive_options)
+  const canInteract = !isTerminal && !!data?.session_id && interactiveOptions.length > 0
 
   const openLogStream = () => {
     if (!hasLogStream || typeof onOpenLogStream !== 'function') {
@@ -187,6 +269,17 @@ export default function SessionCard({
 
     onCancelSession({
       sessionID: data?.session_id || '',
+    })
+  }
+
+  const interactSession = (key) => {
+    if (!canInteract || typeof onInteractSession !== 'function') {
+      return
+    }
+
+    onInteractSession({
+      sessionID: data?.session_id || '',
+      key,
     })
   }
 
@@ -321,6 +414,35 @@ export default function SessionCard({
         )}
         {labels?.reason && <CollapsibleReason reason={labels.reason} />}
       </div>
+
+      {canInteract && (
+        <div style={s.interactiveRow}>
+          <span style={s.interactiveTitle}>Actions:</span>
+          {interactiveOptions.map((option) => {
+            const style = INTERACT_STYLE[option.style] || INTERACT_STYLE.normal
+            return (
+              <button
+                key={option.key}
+                onClick={() => interactSession(option.key)}
+                title={`Interactive action: ${option.label}`}
+                aria-label={`Interactive action: ${option.label}`}
+                style={{
+                  border: `1px solid ${style.borderColor}`,
+                  background: style.background,
+                  color: typeof onInteractSession === 'function' ? style.color : '#64748b',
+                  borderRadius: 6,
+                  padding: '2px 8px',
+                  cursor: typeof onInteractSession === 'function' ? 'pointer' : 'not-allowed',
+                  fontSize: 13,
+                }}
+                disabled={typeof onInteractSession !== 'function'}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {showPerforming && (
         <div style={s.performing}>
