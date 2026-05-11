@@ -126,6 +126,20 @@ export function AuthProvider({ children }) {
     startSAMLLogin()
   }, [])
 
+  const loginWithGCPIAP = useCallback(async () => {
+    const profile = await getUserProfile(null)
+    const provider = String(profile?.provider || 'auth-gcp-iap').trim() || 'auth-gcp-iap'
+    const resolvedSubject = String(profile?.subject || profile?.profile_name || 'user').trim() || 'user'
+    const newCreds = { type: 'none', authProvider: provider }
+    login(newCreds, resolvedSubject)
+    if (profile?.profile_name) {
+      setProfileName(profile.profile_name)
+      setStoredItem(AUTH_KEYS.profileName, profile.profile_name)
+    }
+
+    return profile
+  }, [login])
+
   const finishSAMLLogin = useCallback((token, subject, profileName) => {
     const newCreds = { type: 'token', token, authProvider: 'auth-saml' }
     login(newCreds, subject || 'user')
@@ -207,11 +221,12 @@ export function AuthProvider({ children }) {
   const permissions = ROLE_PERMISSIONS[role] ?? []
   const isGitHubSession = creds?.authProvider === 'auth-github'
   const isSAMLSession = creds?.authProvider === 'auth-saml'
+  const isGCPIAPSession = creds?.authProvider === 'auth-gcp-iap'
 
   const can = useCallback((permission) => permissions.includes(permission), [permissions])
 
   return (
-    <AuthContext.Provider value={{ creds, subject, profileName, role, isGitHubSession, isSAMLSession, can, login, loginWithGitHub, finishGitHubLogin, loginWithSAML, finishSAMLLogin, logout }}>
+    <AuthContext.Provider value={{ creds, subject, profileName, role, isGitHubSession, isSAMLSession, isGCPIAPSession, can, login, loginWithGitHub, finishGitHubLogin, loginWithSAML, finishSAMLLogin, loginWithGCPIAP, logout }}>
       {children}
     </AuthContext.Provider>
   )

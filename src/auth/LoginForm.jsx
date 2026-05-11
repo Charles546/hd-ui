@@ -28,12 +28,12 @@ const s = {
 /**
  * Returns a Set of enabled auth method keys.
  * If ENABLED_AUTH_METHODS is empty/unset, all methods are enabled.
- * Supported keys: 'github', 'saml', 'token', 'basic'
+ * Supported keys: 'github', 'saml', 'gcp-iap', 'token', 'basic'
  */
 function getEnabledMethods() {
   const raw = window.HD_CONFIG?.ENABLED_AUTH_METHODS || import.meta.env.VITE_ENABLED_AUTH_METHODS || ''
   if (!raw.trim()) {
-    return new Set(['github', 'saml', 'token', 'basic'])
+    return new Set(['github', 'saml', 'gcp-iap', 'token', 'basic'])
   }
   return new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
 }
@@ -41,7 +41,7 @@ function getEnabledMethods() {
 const ENABLED = getEnabledMethods()
 
 export default function LoginForm() {
-  const { login, loginWithGitHub, loginWithSAML } = useAuth()
+  const { login, loginWithGitHub, loginWithSAML, loginWithGCPIAP } = useAuth()
 
   // Determine initial scheme based on what's enabled
   const defaultScheme = ENABLED.has('token') ? 'token' : ENABLED.has('basic') ? 'basic' : null
@@ -54,6 +54,8 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [githubError, setGithubError] = useState('')
   const [samlError, setSamlError] = useState('')
+  const [iapError, setIapError] = useState('')
+  const [iapLoading, setIapLoading] = useState(false)
 
   const showCredentialForm = ENABLED.has('token') || ENABLED.has('basic')
   const showTabs = ENABLED.has('token') && ENABLED.has('basic')
@@ -99,6 +101,22 @@ export default function LoginForm() {
     }
   }
 
+  async function handleIAPLogin() {
+    setIapError('')
+    setIapLoading(true)
+    try {
+      await loginWithGCPIAP()
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        setIapError('GCP IAP login is not available for this UI origin. Ensure the UI and API are both behind the same IAP-protected endpoint.')
+      } else {
+        setIapError(err.message || 'GCP IAP login failed.')
+      }
+    } finally {
+      setIapLoading(false)
+    }
+  }
+
   function handleOpenSAMLMetadata() {
     window.location.assign('/auth/saml/metadata')
   }
@@ -127,6 +145,12 @@ export default function LoginForm() {
               View SAML SP Metadata
             </button>
           </>
+        )}
+
+        {ENABLED.has('gcp-iap') && (
+          <button style={{ ...s.btn, marginBottom: 16, background: '#1a73e8', color: '#fff' }} type="button" onClick={handleIAPLogin} disabled={iapLoading}>
+            {iapLoading ? 'Checking GCP IAP session...' : 'Continue With GCP IAP'}
+          </button>
         )}
 
         {showCredentialForm && (
@@ -168,7 +192,7 @@ export default function LoginForm() {
           </>
         )}
 
-        {(error || githubError || samlError) && <div style={s.err}>{error || githubError || samlError}</div>}
+        {(error || githubError || samlError || iapError) && <div style={s.err}>{error || githubError || samlError || iapError}</div>}
       </div>
     </div>
   )
