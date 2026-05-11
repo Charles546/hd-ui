@@ -5,7 +5,7 @@ A React/Vite single-page app that shows in-fly Honeydipper workflow sessions in 
 ## Features
 
 - **Live workflow view** — polls `GET /api/events` every 5 seconds, shows session state, status, and performing steps
-- **Flexible authentication** — Bearer token or HTTP Basic Auth (matches `auth-simple` driver schemes)
+- **Flexible authentication** — Bearer token, HTTP Basic Auth, GitHub OAuth, SAML SSO, or GCP IAP
 - **Role-based UI** — derives role from the authenticated subject; hides actions the user cannot perform
 - **Pagination** — cursor-based paging through sessions
 - **Auto-refresh toggle** — pause/resume live polling
@@ -82,12 +82,15 @@ The web UI bundle itself can be hosted as static assets on a CDN. It still requi
 
 ## Authentication
 
-The UI supports the same schemes as the `auth-simple` driver:
+The UI supports multiple auth schemes depending on how the API is deployed and configured:
 
 | Scheme | How to use |
 |--------|-----------|
 | Bearer token | Paste a token from `daemon.services.api` config |
 | Basic auth | Username + password from `data.users` in `auth-simple` driver config |
+| GitHub OAuth | Click **Continue With GitHub** (requires `auth-github` setup) |
+| SAML SSO | Click **Continue With SAML SSO** (requires `auth-saml` setup) |
+| GCP IAP | Click **Continue With GCP IAP** (UI/API must be behind the same IAP-protected endpoint) |
 
 Credentials are stored in `sessionStorage` and cleared on sign-out.
 
