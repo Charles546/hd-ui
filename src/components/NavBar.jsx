@@ -59,10 +59,11 @@ export default function NavBar({
   showGlobalEventsTab = true,
   showGitHubEventsTab = false,
   showGitHubSecretsTab = false,
+  showConversationsTab = false,
 }) {
   const { subject, profileName, role, logout } = useAuth()
   const displayName = profileName || subject
-  const canSwitchViews = typeof onViewChange === 'function' && (showGlobalEventsTab || showGitHubEventsTab || showGitHubSecretsTab)
+  const canSwitchViews = typeof onViewChange === 'function' && (showGlobalEventsTab || showGitHubEventsTab || showGitHubSecretsTab || showConversationsTab)
 
   return (
     <nav style={s.nav}>
@@ -79,6 +80,9 @@ export default function NavBar({
             )}
             {showGitHubSecretsTab && (
               <button style={s.link(view === 'github-secrets')} onClick={() => onViewChange('github-secrets')}>Script Secrets</button>
+            )}
+            {showConversationsTab && (
+              <button style={s.link(view === 'conversations')} onClick={() => onViewChange('conversations')}>Conversations</button>
             )}
           </div>
         )}

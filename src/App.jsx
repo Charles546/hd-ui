@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext'
 import GitHubCallback from './auth/GitHubCallback'
 import SAMLCallback from './auth/SAMLCallback'
 import SAMLMetadata from './auth/SAMLMetadata'
+import ConversationsPage from './components/ConversationsPage'
 import GitHubSecretsPage from './components/GitHubSecretsPage'
 import GitHubWorkflowList from './components/GitHubWorkflowList'
 import LogStreamPage from './components/LogStreamPage'
@@ -12,6 +13,7 @@ import WorkflowList from './components/WorkflowList'
 
 const s = {
   main: { maxWidth: 900, margin: '0 auto', padding: '32px 24px' },
+  mainWide: { maxWidth: 1400, margin: '0 auto', padding: '16px 24px' },
 }
 
 function parseProviderDataQuery(raw) {
@@ -250,8 +252,9 @@ export default function App() {
         showGlobalEventsTab={showGlobalEventsTab}
         showGitHubEventsTab={showGitHubEventsTab}
         showGitHubSecretsTab={showGitHubEventsTab}
+        showConversationsTab={showGlobalEventsTab}
       />
-      <main style={s.main}>
+      <main style={view === 'conversations' ? s.mainWide : s.main}>
         {isGitHubSession && view === 'github-events' && (
           <GitHubWorkflowList
             ghSlug={ghSlug}
@@ -275,7 +278,8 @@ export default function App() {
             onBackToEvents={openGitHubEvents}
           />
         )}
-        {(!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
+        {view === 'conversations' && <ConversationsPage />}
+        {view !== 'conversations' && (!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
           view !== 'log-stream' && <WorkflowList onForbidden={handleEventsForbidden} onOpenLogStream={openLogStream} />
         )}
       </main>

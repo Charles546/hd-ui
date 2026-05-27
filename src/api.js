@@ -273,3 +273,22 @@ export async function healthCheck() {
   const res = await fetch('/healthz')
   return res.ok
 }
+
+// GET /api/convos — list recent conversations from convo_stream_ blocks
+export async function listConvos(creds, params = {}) {
+  const query = new URLSearchParams()
+  if (params.lookBack !== undefined && params.lookBack !== null) {
+    query.set('look_back', String(params.lookBack))
+  }
+  if (params.asOf) {
+    query.set('as_of', String(params.asOf))
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  return apiFetch(`/convos${suffix}`, creds)
+}
+
+// GET /api/convos/:convoID/history — conversation message history
+export async function getConvoHistory(creds, convoID) {
+  return apiFetch(`/convos/${encodeURIComponent(convoID)}/history`, creds)
+}
