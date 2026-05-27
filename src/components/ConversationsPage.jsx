@@ -431,6 +431,7 @@ export default function ConversationsPage() {
   const [oldestAsOf, setOldestAsOf] = useState('')
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [cancellingID, setCancellingID] = useState(null)
+  const [isPaused, setIsPaused] = useState(false)
   const timerRef = useRef(null)
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
@@ -474,11 +475,12 @@ export default function ConversationsPage() {
     fetchConvos('initial')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // auto-poll
+  // auto-poll — suspended while isPaused
   useEffect(() => {
+    if (isPaused) return
     timerRef.current = setInterval(() => fetchConvos('poll'), POLL_INTERVAL_MS)
     return () => clearInterval(timerRef.current)
-  }, [fetchConvos])
+  }, [fetchConvos, isPaused])
 
   // load history when selection changes
   useEffect(() => {
@@ -525,6 +527,9 @@ export default function ConversationsPage() {
             {lastRefreshedAt && (
               <span style={s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
             )}
+            <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
+              {isPaused ? '▶ Resume' : '⏸ Pause'}
+            </button>
             <button style={s.btn} onClick={() => fetchConvos('initial')} disabled={loading}>
               {loading ? '…' : 'Refresh'}
             </button>
