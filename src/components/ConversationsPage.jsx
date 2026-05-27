@@ -434,6 +434,8 @@ export default function ConversationsPage() {
   const [isPaused, setIsPaused] = useState(false)
   const [isHistoryPaused, setIsHistoryPaused] = useState(false)
   const timerRef = useRef(null)
+  const historyEndRef = useRef(null)
+  const wasActiveRef = useRef(false)
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
@@ -530,6 +532,19 @@ export default function ConversationsPage() {
     return () => clearInterval(timer)
   }, [fetchHistory, isSelectedConvoActive, isHistoryPaused])
 
+  // final refresh when conversation transitions from active -> inactive
+  useEffect(() => {
+    if (!isSelectedConvoActive && wasActiveRef.current) {
+      fetchHistory(false)
+    }
+    wasActiveRef.current = isSelectedConvoActive
+  }, [isSelectedConvoActive, fetchHistory])
+
+  // scroll to bottom when history updates
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [history])
+
   return (
     <div style={s.page}>
       {/* Left column — conversation list */}
@@ -618,6 +633,7 @@ export default function ConversationsPage() {
           {history.map((msg, i) => (
             <MessageBubble key={i} msg={msg} />
           ))}
+          <div ref={historyEndRef} />
         </div>
       </div>
     </div>
