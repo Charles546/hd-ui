@@ -300,3 +300,13 @@ export async function getConvoHistory(creds, convoID) {
 export async function cancelConvo(creds, convoID) {
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/cancel`, creds, { method: 'POST' })
 }
+
+// POST /api/convos/:convoID/turn — start a new chat turn from the UI.
+// text is the user message; user is an optional display name.
+// The turn runs asynchronously on the backend; the API returns immediately.
+export async function startTurn(creds, convoID, text, user) {
+  return apiFetch(`/convos/${encodeURIComponent(convoID)}/turn`, creds, {
+    method: 'POST',
+    body: JSON.stringify({ text, user: user || '' }),
+  })
+}

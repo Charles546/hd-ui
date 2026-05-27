@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { listConvos, getConvoHistory, cancelConvo } from '../api'
+import { listConvos, getConvoHistory, cancelConvo, startTurn } from '../api'
 import { useAuth } from '../auth/AuthContext'
 
 const POLL_INTERVAL_MS = 10000
@@ -206,6 +206,42 @@ const s = {
     marginLeft: 14,
     paddingLeft: 8,
     borderLeft: '1px solid #2d3148',
+  },
+  turnInputArea: {
+    padding: '10px 16px',
+    borderTop: '1px solid #2d3148',
+    background: '#11141c',
+    flexShrink: 0,
+    display: 'flex',
+    gap: 8,
+    alignItems: 'flex-end',
+  },
+  turnInput: {
+    flex: 1,
+    background: '#0f1117',
+    border: '1px solid #2d3148',
+    borderRadius: 8,
+    color: '#e2e8f0',
+    fontSize: 13,
+    padding: '8px 12px',
+    resize: 'none',
+    outline: 'none',
+    lineHeight: 1.5,
+    fontFamily: 'inherit',
+    minHeight: 38,
+    maxHeight: 140,
+  },
+  turnSendBtn: {
+    padding: '8px 16px',
+    borderRadius: 8,
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+    background: '#3b82f6',
+    color: '#fff',
+    flexShrink: 0,
+    alignSelf: 'flex-end',
   },
 }
 
@@ -433,6 +469,8 @@ export default function ConversationsPage() {
   const [cancellingID, setCancellingID] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [isHistoryPaused, setIsHistoryPaused] = useState(false)
+  const [turnText, setTurnText] = useState('')
+  const [isSendingTurn, setIsSendingTurn] = useState(false)
   const timerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
@@ -522,8 +560,27 @@ export default function ConversationsPage() {
     }
   }, [creds, fetchConvos])
 
+  const handleSendTurn = useCallback(async () => {
+    const text = turnText.trim()
+    if (!text || !selectedID) return
+    setIsSendingTurn(true)
+    setTurnText('')
+    try {
+      await startTurn(creds, selectedID, text)
+      fetchConvos('poll')
+      fetchHistory(false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsSendingTurn(false)
+    }
+  }, [creds, selectedID, turnText, fetchConvos, fetchHistory])
+
   const selectedConvo = convos.find((c) => c.convo_id === selectedID)
   const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo.sessions) === 'active'
+  // A top-level convo has no parent (unified_convo_id equals its own convo_id or is absent).
+  const isTopLevelConvo = selectedConvo != null &&
+    (!selectedConvo.unified_convo_id || selectedConvo.unified_convo_id === selectedConvo.convo_id)
 
   // auto-refresh history when the selected conversation is active
   useEffect(() => {
@@ -635,6 +692,28 @@ export default function ConversationsPage() {
           ))}
           <div ref={historyEndRef} />
         </div>
+        {selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
+          <div style={s.turnInputArea}>
+            <textarea
+              style={s.turnInput}
+              rows={1}
+              placeholder="Start a new turn…"
+              value={turnText}
+              onChange={(e) => setTurnText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendTurn() }
+              }}
+              disabled={isSendingTurn}
+            />
+            <button
+              style={{ ...s.turnSendBtn, opacity: isSendingTurn || !turnText.trim() ? 0.5 : 1 }}
+              onClick={handleSendTurn}
+              disabled={isSendingTurn || !turnText.trim()}
+            >
+              {isSendingTurn ? '…' : 'Send'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
