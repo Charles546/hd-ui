@@ -432,6 +432,7 @@ export default function ConversationsPage() {
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [cancellingID, setCancellingID] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
+  const [isHistoryPaused, setIsHistoryPaused] = useState(false)
   const timerRef = useRef(null)
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
@@ -482,17 +483,15 @@ export default function ConversationsPage() {
     return () => clearInterval(timerRef.current)
   }, [fetchConvos, isPaused])
 
-  // load history when selection changes
-  useEffect(() => {
-    if (!selectedID) { setHistory([]); return }
-    setHistoryLoading(true)
+  const fetchHistory = useCallback((silent = false) => {
+    if (!selectedID) return
+    if (!silent) setHistoryLoading(true)
     setHistoryError('')
     getConvoHistory(creds, selectedID)
       .then((data) => {
         if (Array.isArray(data)) {
           setHistory(data)
         } else if (data && typeof data === 'object') {
-          // unwrap single-key envelope if needed
           const vals = Object.values(data)
           setHistory(Array.isArray(vals[0]) ? vals[0] : [])
         } else {
@@ -502,6 +501,12 @@ export default function ConversationsPage() {
       .catch((err) => setHistoryError(err.message))
       .finally(() => setHistoryLoading(false))
   }, [selectedID, creds])
+
+  // load history when selection changes
+  useEffect(() => {
+    if (!selectedID) { setHistory([]); return }
+    fetchHistory(false)
+  }, [fetchHistory]) // fetchHistory identity changes when selectedID or creds change
 
   const handleCancelConvo = useCallback(async (convoID) => {
     setCancellingID(convoID)
@@ -516,6 +521,14 @@ export default function ConversationsPage() {
   }, [creds, fetchConvos])
 
   const selectedConvo = convos.find((c) => c.convo_id === selectedID)
+  const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo.sessions) === 'active'
+
+  // auto-refresh history when the selected conversation is active
+  useEffect(() => {
+    if (!isSelectedConvoActive || isHistoryPaused) return
+    const timer = setInterval(() => fetchHistory(true), POLL_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [fetchHistory, isSelectedConvoActive, isHistoryPaused])
 
   return (
     <div style={s.page}>
@@ -588,6 +601,11 @@ export default function ConversationsPage() {
               {(selectedConvo.sessions || []).map((sess) => (
                 <span key={sess.session_id} style={s.badge(STATUS_COLOR[sess.status])}>{sess.agent_name || sess.type}</span>
               ))}
+              {isSelectedConvoActive && (
+                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+              )}
             </div>
           )}
         </div>
