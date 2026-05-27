@@ -328,6 +328,37 @@ function CollapsiblePre({ text, bg }) {
   )
 }
 
+function CollapsibleMarkdown({ text, viewMode }) {
+  const lines = text.split('\n').length
+  const collapsible = lines > COLLAPSE_LINE_THRESHOLD
+  const [expanded, setExpanded] = useState(false)
+  const collapsed = collapsible && !expanded
+  const maxH = viewMode === 'markdown' ? 72 : 50
+  return (
+    <>
+      <div style={{ position: 'relative' }}>
+        <div style={collapsed ? { maxHeight: maxH, overflow: 'hidden' } : {}}>
+          {viewMode === 'markdown'
+            ? <div className="md-content"><ReactMarkdown>{text}</ReactMarkdown></div>
+            : <div style={s.msgContent}>{text}</div>}
+        </div>
+        {collapsed && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 24,
+            background: 'linear-gradient(transparent, #0d1017)',
+            pointerEvents: 'none',
+          }} />
+        )}
+      </div>
+      {collapsible && (
+        <button style={s.collapseToggle} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? '▲ collapse' : '▼ expand'}
+        </button>
+      )}
+    </>
+  )
+}
+
 function ToolCallCard({ call }) {
   const isAgent = call.FuncName?.startsWith('ag__')
   const displayName = isAgent ? call.FuncName.slice(4) : call.FuncName
@@ -346,9 +377,7 @@ function ToolCallCard({ call }) {
         )}
       </div>
       {isAgent
-        ? (input && (viewMode === 'markdown'
-            ? <div className="md-content"><ReactMarkdown>{input}</ReactMarkdown></div>
-            : <div style={s.msgContent}>{input}</div>))
+        ? (input && <CollapsibleMarkdown text={input} viewMode={viewMode} />)
         : (hasParams && <CollapsiblePre text={JSON.stringify(call.Params, null, 2)} />)
       }
     </div>
@@ -374,9 +403,7 @@ function ToolResultCard({ result, index }) {
         )}
       </div>
       {renderAsMarkdown
-        ? (viewMode === 'markdown'
-            ? <div className="md-content"><ReactMarkdown>{data}</ReactMarkdown></div>
-            : <div style={s.msgContent}>{data}</div>)
+        ? <CollapsibleMarkdown text={data} viewMode={viewMode} />
         : <CollapsiblePre text={JSON.stringify(result, null, 2)} />
       }
     </div>
