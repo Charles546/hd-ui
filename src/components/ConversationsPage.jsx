@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { listConvos, getConvoHistory, cancelConvo, startTurn } from '../api'
+import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents } from '../api'
 import { useAuth } from '../auth/AuthContext'
 
 const POLL_INTERVAL_MS = 10000
@@ -94,6 +94,16 @@ const s = {
   }),
   ts: { fontSize: 11, color: '#475569' },
   agentName: { fontSize: 11, color: '#7c86ad' },
+  firstTurnPreview: {
+    fontSize: 12,
+    color: '#cbd5e1',
+    marginTop: 4,
+    lineHeight: 1.4,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
 
   msgRow: (role) => ({
     display: 'flex',
@@ -243,6 +253,26 @@ const s = {
     flexShrink: 0,
     alignSelf: 'flex-end',
   },
+  newConvoBtn: {
+    padding: '4px 12px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    background: '#3b82f6',
+    color: '#fff',
+  },
+  agentSelect: {
+    background: '#0f1117',
+    border: '1px solid #2d3148',
+    borderRadius: 8,
+    color: '#e2e8f0',
+    fontSize: 13,
+    padding: '8px 12px',
+    outline: 'none',
+    flexShrink: 0,
+  },
 }
 
 function fmtTime(ts) {
@@ -275,6 +305,7 @@ function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
   return (
     <div style={s.convoCard(selected)} onClick={onClick}>
       <div style={s.convoID} title={convo.convo_id}>{truncateID(convo.convo_id)}</div>
+      {convo.first_turn && <div style={s.firstTurnPreview} title={convo.first_turn}>{convo.first_turn}</div>}
       <div style={s.convoRow}>
         <span style={s.badge(STATUS_COLOR[status])}>{status}</span>
         {agentNames.map((name) => (
@@ -412,6 +443,7 @@ function ToolResultCard({ result, index }) {
 
 function MessageBubble({ msg }) {
   const role = msg.Role || msg.role || 'unknown'
+  const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
   const [viewMode, setViewMode] = useState(defaultMode)
   const content = msg.content || ''
@@ -421,7 +453,10 @@ function MessageBubble({ msg }) {
     <div style={s.msgRow(role)}>
       <div style={s.msgBubble(role)}>
         <div style={s.msgHeader}>
-          <div style={s.msgRole(role)}>{role}</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <div style={s.msgRole(role)}>{role}</div>
+            {user && <div style={{ fontSize: 10, color: '#64748b' }}>{user}</div>}
+          </div>
           {content && (
             <select style={s.viewSelect} value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
               <option value="markdown">Markdown</option>
@@ -534,6 +569,9 @@ export default function ConversationsPage() {
   const [isHistoryPaused, setIsHistoryPaused] = useState(false)
   const [turnText, setTurnText] = useState('')
   const [isSendingTurn, setIsSendingTurn] = useState(false)
+  const [isNewConvo, setIsNewConvo] = useState(false)
+  const [agents, setAgents] = useState([])
+  const [selectedAgent, setSelectedAgent] = useState('')
   const timerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
@@ -639,6 +677,52 @@ export default function ConversationsPage() {
     }
   }, [creds, selectedID, turnText, fetchConvos, fetchHistory])
 
+  const handleSendNewConvo = useCallback(async () => {
+    const text = turnText.trim()
+    if (!text || !selectedAgent) return
+    setIsSendingTurn(true)
+    setTurnText('')
+    try {
+      const raw = await startNewConvo(creds, selectedAgent, text)
+      // Unwrap node envelope: { "<node>": {"convo_id": "..."} }
+      const result = (raw && !Array.isArray(raw) && typeof raw === 'object')
+        ? (raw.convo_id ? raw : Object.values(raw).find((v) => v?.convo_id) ?? raw)
+        : raw
+      setIsNewConvo(false)
+      await fetchConvos('poll')
+      if (result?.convo_id) setSelectedID(result.convo_id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsSendingTurn(false)
+    }
+  }, [creds, selectedAgent, turnText, fetchConvos])
+
+  const handleNewConvoClick = useCallback(() => {
+    setIsNewConvo(true)
+    setSelectedID(null)
+    setHistory([])
+    setTurnText('')
+  }, [])
+
+  // fetch agent list once on mount
+  useEffect(() => {
+    listAgents(creds)
+      .then((data) => {
+        // The API layer wraps payload as { "<node-id>": <value> }.
+        // Unwrap one level if data is a plain object (not an array).
+        let names = data
+        if (data && !Array.isArray(data) && typeof data === 'object') {
+          const vals = Object.values(data)
+          names = vals.find(Array.isArray) ?? []
+        }
+        if (!Array.isArray(names)) names = []
+        setAgents(names)
+        if (names.length > 0) setSelectedAgent(names[0])
+      })
+      .catch(() => {})
+  }, [creds])
+
   const selectedConvo = convos.find((c) => c.convo_id === selectedID)
   const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo.sessions) === 'active'
   // A top-level convo has no parent (unified_convo_id equals its own convo_id or is absent).
@@ -675,6 +759,7 @@ export default function ConversationsPage() {
             {lastRefreshedAt && (
               <span style={s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
             )}
+            <button style={s.newConvoBtn} onClick={handleNewConvoClick}>+ New</button>
             <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
               {isPaused ? '▶ Resume' : '⏸ Pause'}
             </button>
@@ -693,7 +778,7 @@ export default function ConversationsPage() {
               <ConvoCard
                 convo={c}
                 selected={c.convo_id === selectedID}
-                onClick={() => setSelectedID(c.convo_id === selectedID ? null : c.convo_id)}
+                onClick={() => { setIsNewConvo(false); setSelectedID(c.convo_id === selectedID ? null : c.convo_id) }}
                 onCancel={handleCancelConvo}
                 cancelling={cancellingID === c.convo_id}
               />
@@ -704,7 +789,7 @@ export default function ConversationsPage() {
                       key={child.convo_id}
                       convo={child}
                       selected={child.convo_id === selectedID}
-                      onClick={() => setSelectedID(child.convo_id === selectedID ? null : child.convo_id)}
+                      onClick={() => { setIsNewConvo(false); setSelectedID(child.convo_id === selectedID ? null : child.convo_id) }}
                       onCancel={handleCancelConvo}
                       cancelling={cancellingID === child.convo_id}
                     />
@@ -727,9 +812,11 @@ export default function ConversationsPage() {
       <div style={s.rightCol}>
         <div style={s.colHeader}>
           <span style={s.colTitle}>
-            {selectedConvo
-              ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
-              : 'History'}
+            {isNewConvo
+              ? 'New Conversation'
+              : selectedConvo
+                ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                : 'History'}
           </span>
           {isSelectedConvoActive && (
             <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
@@ -738,16 +825,19 @@ export default function ConversationsPage() {
           )}
         </div>
         <div style={s.historyScroll}>
-          {!selectedID && (
+          {isNewConvo && (
+            <div style={s.empty}>Select an agent and type your first message below</div>
+          )}
+          {!isNewConvo && !selectedID && (
             <div style={s.empty}>Select a conversation to view its history</div>
           )}
-          {selectedID && historyLoading && (
+          {!isNewConvo && selectedID && historyLoading && (
             <div style={s.empty}>Loading…</div>
           )}
-          {selectedID && historyError && (
+          {!isNewConvo && selectedID && historyError && (
             <div style={s.err}>{historyError}</div>
           )}
-          {selectedID && !historyLoading && !historyError && history.length === 0 && (
+          {!isNewConvo && selectedID && !historyLoading && !historyError && history.length === 0 && (
             <div style={s.empty}>No messages in history</div>
           )}
           {history.map((msg, i) => (
@@ -755,7 +845,38 @@ export default function ConversationsPage() {
           ))}
           <div ref={historyEndRef} />
         </div>
-        {selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
+        {isNewConvo && (
+          <div style={s.turnInputArea}>
+            <select
+              style={s.agentSelect}
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              disabled={isSendingTurn}
+            >
+              {agents.length === 0 && <option value="">No agents</option>}
+              {agents.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <textarea
+              style={s.turnInput}
+              rows={1}
+              placeholder="Type your first message…"
+              value={turnText}
+              onChange={(e) => setTurnText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendNewConvo() }
+              }}
+              disabled={isSendingTurn}
+            />
+            <button
+              style={{ ...s.turnSendBtn, opacity: isSendingTurn || !turnText.trim() || !selectedAgent ? 0.5 : 1 }}
+              onClick={handleSendNewConvo}
+              disabled={isSendingTurn || !turnText.trim() || !selectedAgent}
+            >
+              {isSendingTurn ? '…' : 'Start'}
+            </button>
+          </div>
+        )}
+        {!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
           <div style={s.turnInputArea}>
             <textarea
               style={s.turnInput}
