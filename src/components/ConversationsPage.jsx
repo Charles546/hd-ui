@@ -92,17 +92,6 @@ const s = {
     letterSpacing: 0.5,
     border: `1px solid ${(color || '#94a3b8') + '44'}`,
   }),
-  cancelledBadge: {
-    fontSize: 10,
-    fontWeight: 700,
-    padding: '1px 7px',
-    borderRadius: 20,
-    background: '#f9731622',
-    color: '#f97316',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    border: '1px solid #f9731644',
-  },
   ts: { fontSize: 11, color: '#475569' },
   agentName: { fontSize: 11, color: '#7c86ad' },
 
@@ -237,9 +226,8 @@ function truncateID(id) {
 function getOverallStatus(sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return 'unknown'
   if (sessions.some((s) => s.status === 'active')) return 'active'
-  if (sessions.every((s) => s.status === 'complete')) return 'complete'
-  if (sessions.some((s) => s.status === 'failed')) return 'failed'
-  if (sessions.some((s) => s.status === 'cancelled')) return 'cancelled'
+  // Use the latest session's terminal status so that a cancelled/failed turn
+  // doesn't permanently taint the conversation once the user continues.
   return sessions[sessions.length - 1]?.status || 'unknown'
 }
 
@@ -253,7 +241,6 @@ function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
       <div style={s.convoID} title={convo.convo_id}>{truncateID(convo.convo_id)}</div>
       <div style={s.convoRow}>
         <span style={s.badge(STATUS_COLOR[status])}>{status}</span>
-        {convo.cancelled && <span style={s.cancelledBadge}>cancelled</span>}
         {agentNames.map((name) => (
           <span key={name} style={s.agentName}>{name}</span>
         ))}
