@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { listConvos, getConvoHistory } from '../api'
 import { useAuth } from '../auth/AuthContext'
 
@@ -105,22 +106,43 @@ const s = {
   ts: { fontSize: 11, color: '#475569' },
   agentName: { fontSize: 11, color: '#7c86ad' },
 
+  msgRow: (role) => ({
+    display: 'flex',
+    justifyContent: role === 'user' ? 'flex-end' : 'flex-start',
+  }),
   msgBubble: (role) => ({
     padding: '8px 12px',
     borderRadius: 8,
     border: '1px solid #2d3148',
     background: role === 'user' ? '#162030' : role === 'agent' ? '#12201a' : '#191d2b',
-    maxWidth: '100%',
+    maxWidth: '75%',
     wordBreak: 'break-word',
+    textAlign: 'left',
   }),
+  msgHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
   msgRole: (role) => ({
     fontSize: 11,
     fontWeight: 700,
     color: ROLE_COLOR[role] || '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
   }),
+  viewSelect: {
+    fontSize: 10,
+    background: '#0f1117',
+    color: '#64748b',
+    border: '1px solid #2d3148',
+    borderRadius: 4,
+    padding: '1px 4px',
+    cursor: 'pointer',
+    outline: 'none',
+  },
   msgContent: {
     fontSize: 13,
     color: '#cbd5e1',
@@ -128,6 +150,49 @@ const s = {
     lineHeight: 1.6,
   },
   toolCallID: { fontSize: 10, color: '#475569', marginTop: 2 },
+  toolCallCard: {
+    background: '#0d1017',
+    borderRadius: 6,
+    border: '1px solid #2d3148',
+    padding: '6px 10px',
+  },
+  toolCallFuncName: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#f6c90e',
+    marginBottom: 4,
+  },
+  toolCallJson: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    color: '#94a3b8',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  toolResultLabel: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  collapseToggle: {
+    display: 'block',
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    borderTop: '1px solid #1e2438',
+    color: '#475569',
+    fontSize: 10,
+    cursor: 'pointer',
+    padding: '3px 0 0',
+    textAlign: 'center',
+    marginTop: 4,
+  },
 
   empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
@@ -136,6 +201,11 @@ const s = {
     background: '#2d3148', color: '#94a3b8',
   },
   refreshLabel: { fontSize: 11, color: '#64748b' },
+  convoChildren: {
+    marginLeft: 14,
+    paddingLeft: 8,
+    borderLeft: '1px solid #2d3148',
+  },
 }
 
 function fmtTime(ts) {
@@ -186,13 +256,88 @@ function ConvoCard({ convo, selected, onClick }) {
   )
 }
 
-function MessageBubble({ msg }) {
-  const role = msg.role || 'unknown'
+const COLLAPSE_LINE_THRESHOLD = 3
+
+function CollapsiblePre({ text, bg }) {
+  const lines = text.split('\n').length
+  const collapsible = lines > COLLAPSE_LINE_THRESHOLD
+  const [expanded, setExpanded] = useState(false)
+  const collapsed = collapsible && !expanded
   return (
-    <div style={s.msgBubble(role)}>
-      <div style={s.msgRole(role)}>{role}</div>
-      <div style={s.msgContent}>{msg.content || ''}</div>
-      {msg.tool_call_id && <div style={s.toolCallID}>tool_call_id: {msg.tool_call_id}</div>}
+    <>
+      <div style={{ position: 'relative' }}>
+        <pre style={{ ...s.toolCallJson, ...(collapsed ? { maxHeight: 50, overflow: 'hidden' } : {}) }}>{text}</pre>
+        {collapsed && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 24,
+            background: `linear-gradient(transparent, ${bg || '#0d1017'})`,
+            pointerEvents: 'none',
+          }} />
+        )}
+      </div>
+      {collapsible && (
+        <button style={s.collapseToggle} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? '▲ collapse' : '▼ expand'}
+        </button>
+      )}
+    </>
+  )
+}
+
+function ToolCallCard({ call }) {
+  const hasParams = call.Params && Object.keys(call.Params).length > 0
+  return (
+    <div style={s.toolCallCard}>
+      <div style={s.toolCallFuncName}>⚙ {call.FuncName}</div>
+      {hasParams && <CollapsiblePre text={JSON.stringify(call.Params, null, 2)} />}
+    </div>
+  )
+}
+
+function ToolResultCard({ result, index }) {
+  return (
+    <div style={s.toolCallCard}>
+      <div style={s.toolResultLabel}>result {index + 1}</div>
+      <CollapsiblePre text={JSON.stringify(result, null, 2)} />
+    </div>
+  )
+}
+
+function MessageBubble({ msg }) {
+  const role = msg.Role || msg.role || 'unknown'
+  const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
+  const [viewMode, setViewMode] = useState(defaultMode)
+  const content = msg.content || ''
+  const toolCalls = msg.ToolCalls || []
+  const toolResults = msg.ToolResult || []
+  return (
+    <div style={s.msgRow(role)}>
+      <div style={s.msgBubble(role)}>
+        <div style={s.msgHeader}>
+          <div style={s.msgRole(role)}>{role}</div>
+          {content && (
+            <select style={s.viewSelect} value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+              <option value="markdown">Markdown</option>
+              <option value="text">Text</option>
+            </select>
+          )}
+        </div>
+        {toolCalls.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
+            {toolCalls.map((call, i) => <ToolCallCard key={i} call={call} />)}
+          </div>
+        )}
+        {toolResults.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
+            {toolResults.map((result, i) => <ToolResultCard key={i} result={result} index={i} />)}
+          </div>
+        )}
+        {content && (viewMode === 'markdown'
+          ? <div className="md-content"><ReactMarkdown>{content}</ReactMarkdown></div>
+          : <div style={s.msgContent}>{content}</div>
+        )}
+        {msg.tool_call_id && <div style={s.toolCallID}>tool_call_id: {msg.tool_call_id}</div>}
+      </div>
     </div>
   )
 }
@@ -245,6 +390,24 @@ function mergeConvos(existing, incoming) {
     return tb - ta
   })
   return out
+}
+
+function buildConvoTree(convos) {
+  const byID = new Map(convos.map((c) => [c.convo_id, c]))
+  const childrenMap = new Map()
+  const roots = []
+
+  for (const c of convos) {
+    const parentID = c.unified_convo_id
+    if (parentID && parentID !== c.convo_id && byID.has(parentID)) {
+      if (!childrenMap.has(parentID)) childrenMap.set(parentID, [])
+      childrenMap.get(parentID).push(c)
+    } else {
+      roots.push(c)
+    }
+  }
+
+  return roots.map((c) => ({ convo: c, children: childrenMap.get(c.convo_id) || [] }))
 }
 
 export default function ConversationsPage() {
@@ -351,13 +514,26 @@ export default function ConversationsPage() {
           {convos.length === 0 && !loading && (
             <div style={s.empty}>No conversations yet</div>
           )}
-          {convos.map((c) => (
-            <ConvoCard
-              key={c.convo_id}
-              convo={c}
-              selected={c.convo_id === selectedID}
-              onClick={() => setSelectedID(c.convo_id === selectedID ? null : c.convo_id)}
-            />
+          {buildConvoTree(convos).map(({ convo: c, children }) => (
+            <div key={c.convo_id}>
+              <ConvoCard
+                convo={c}
+                selected={c.convo_id === selectedID}
+                onClick={() => setSelectedID(c.convo_id === selectedID ? null : c.convo_id)}
+              />
+              {children.length > 0 && (
+                <div style={s.convoChildren}>
+                  {children.map((child) => (
+                    <ConvoCard
+                      key={child.convo_id}
+                      convo={child}
+                      selected={child.convo_id === selectedID}
+                      onClick={() => setSelectedID(child.convo_id === selectedID ? null : child.convo_id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
           {convos.length > 0 && (
             <div style={{ textAlign: 'center', marginTop: 8 }}>
