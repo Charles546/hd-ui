@@ -329,20 +329,56 @@ function CollapsiblePre({ text, bg }) {
 }
 
 function ToolCallCard({ call }) {
-  const hasParams = call.Params && Object.keys(call.Params).length > 0
+  const isAgent = call.FuncName?.startsWith('ag__')
+  const displayName = isAgent ? call.FuncName.slice(4) : call.FuncName
+  const input = isAgent ? (call.Params?.input || '') : null
+  const [viewMode, setViewMode] = useState('markdown')
+  const hasParams = !isAgent && call.Params && Object.keys(call.Params).length > 0
   return (
     <div style={s.toolCallCard}>
-      <div style={s.toolCallFuncName}>⚙ {call.FuncName}</div>
-      {hasParams && <CollapsiblePre text={JSON.stringify(call.Params, null, 2)} />}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={s.toolCallFuncName}>{isAgent ? '🤖' : '⚙'} {displayName}</div>
+        {isAgent && input && (
+          <select style={s.viewSelect} value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+            <option value="markdown">Markdown</option>
+            <option value="text">Text</option>
+          </select>
+        )}
+      </div>
+      {isAgent
+        ? (input && (viewMode === 'markdown'
+            ? <div className="md-content"><ReactMarkdown>{input}</ReactMarkdown></div>
+            : <div style={s.msgContent}>{input}</div>))
+        : (hasParams && <CollapsiblePre text={JSON.stringify(call.Params, null, 2)} />)
+      }
     </div>
   )
 }
 
 function ToolResultCard({ result, index }) {
+  const data = result?.data
+  const isStringData = typeof data === 'string'
+  const isSuccess = result?.status === 'success' || result?.status == null
+  const isAgentResult = result?.func_name?.startsWith('ag__')
+  const renderAsMarkdown = isStringData && isSuccess && isAgentResult
+  const [viewMode, setViewMode] = useState('markdown')
   return (
     <div style={s.toolCallCard}>
-      <div style={s.toolResultLabel}>result {index + 1}</div>
-      <CollapsiblePre text={JSON.stringify(result, null, 2)} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={s.toolResultLabel}>result {index + 1}{result?.status ? ` · ${result.status}` : ''}</div>
+        {renderAsMarkdown && (
+          <select style={s.viewSelect} value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+            <option value="markdown">Markdown</option>
+            <option value="text">Text</option>
+          </select>
+        )}
+      </div>
+      {renderAsMarkdown
+        ? (viewMode === 'markdown'
+            ? <div className="md-content"><ReactMarkdown>{data}</ReactMarkdown></div>
+            : <div style={s.msgContent}>{data}</div>)
+        : <CollapsiblePre text={JSON.stringify(result, null, 2)} />
+      }
     </div>
   )
 }
