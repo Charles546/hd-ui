@@ -596,17 +596,10 @@ export default function ConversationsPage() {
               ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
               : 'History'}
           </span>
-          {selectedConvo && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {(selectedConvo.sessions || []).map((sess) => (
-                <span key={sess.session_id} style={s.badge(STATUS_COLOR[sess.status])}>{sess.agent_name || sess.type}</span>
-              ))}
-              {isSelectedConvoActive && (
-                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
-                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
-                </button>
-              )}
-            </div>
+          {isSelectedConvoActive && (
+            <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+              {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+            </button>
           )}
         </div>
         <div style={s.historyScroll}>
