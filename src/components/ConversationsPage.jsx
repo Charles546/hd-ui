@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { listConvos, getConvoHistory } from '../api'
+import { listConvos, getConvoHistory, cancelConvo } from '../api'
 import { useAuth } from '../auth/AuthContext'
 
 const POLL_INTERVAL_MS = 10000
@@ -194,6 +194,18 @@ const s = {
     marginTop: 4,
   },
 
+  cancelBtn: {
+    fontSize: 10,
+    fontWeight: 700,
+    padding: '1px 7px',
+    borderRadius: 20,
+    background: '#f8717122',
+    color: '#f87171',
+    border: '1px solid #f8717144',
+    cursor: 'pointer',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
   btn: {
@@ -231,7 +243,7 @@ function getOverallStatus(sessions) {
   return sessions[sessions.length - 1]?.status || 'unknown'
 }
 
-function ConvoCard({ convo, selected, onClick }) {
+function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
   const status = getOverallStatus(convo.sessions)
   const latestSession = convo.sessions?.[convo.sessions.length - 1]
   const agentNames = [...new Set((convo.sessions || []).map((s) => s.agent_name).filter(Boolean))]
@@ -245,6 +257,15 @@ function ConvoCard({ convo, selected, onClick }) {
         {agentNames.map((name) => (
           <span key={name} style={s.agentName}>{name}</span>
         ))}
+        {status === 'active' && onCancel && (
+          <button
+            style={s.cancelBtn}
+            onClick={(e) => { e.stopPropagation(); onCancel(convo.convo_id) }}
+            disabled={cancelling}
+          >
+            {cancelling ? '…' : 'Cancel'}
+          </button>
+        )}
       </div>
       <div style={s.convoRow}>
         <span style={s.ts}>{fmtTime(latestSession?.updated_at)}</span>
@@ -422,6 +443,7 @@ export default function ConversationsPage() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null)
   const [oldestAsOf, setOldestAsOf] = useState('')
   const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [cancellingID, setCancellingID] = useState(null)
   const timerRef = useRef(null)
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
@@ -492,6 +514,18 @@ export default function ConversationsPage() {
       .finally(() => setHistoryLoading(false))
   }, [selectedID, creds])
 
+  const handleCancelConvo = useCallback(async (convoID) => {
+    setCancellingID(convoID)
+    try {
+      await cancelConvo(creds, convoID)
+      fetchConvos('poll')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCancellingID(null)
+    }
+  }, [creds, fetchConvos])
+
   const selectedConvo = convos.find((c) => c.convo_id === selectedID)
 
   return (
@@ -520,6 +554,8 @@ export default function ConversationsPage() {
                 convo={c}
                 selected={c.convo_id === selectedID}
                 onClick={() => setSelectedID(c.convo_id === selectedID ? null : c.convo_id)}
+                onCancel={handleCancelConvo}
+                cancelling={cancellingID === c.convo_id}
               />
               {children.length > 0 && (
                 <div style={s.convoChildren}>
@@ -529,6 +565,8 @@ export default function ConversationsPage() {
                       convo={child}
                       selected={child.convo_id === selectedID}
                       onClick={() => setSelectedID(child.convo_id === selectedID ? null : child.convo_id)}
+                      onCancel={handleCancelConvo}
+                      cancelling={cancellingID === child.convo_id}
                     />
                   ))}
                 </div>

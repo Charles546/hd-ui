@@ -292,3 +292,11 @@ export async function listConvos(creds, params = {}) {
 export async function getConvoHistory(creds, convoID) {
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/history`, creds)
 }
+
+// POST /api/convos/:convoID/cancel — mark conversation as cancelled
+// Active sessions detect the flag on their next poll cycle and abort.
+// Cancelling a parent convo_id also cascades to all child sessions that
+// reference it as their unified_convo_id.
+export async function cancelConvo(creds, convoID) {
+  return apiFetch(`/convos/${encodeURIComponent(convoID)}/cancel`, creds, { method: 'POST' })
+}
