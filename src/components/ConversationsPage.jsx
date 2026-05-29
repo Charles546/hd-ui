@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import TurnInputArea from './TurnInputArea'
+import NewConvoInput from './NewConvoInput'
 
 const POLL_INTERVAL_MS = 10000
 const INITIAL_LOOK_BACK = 12
@@ -229,56 +231,6 @@ const s = {
     borderTop: '1px solid #2d3148',
     background: '#11141c',
     flexShrink: 0,
-    display: 'flex',
-    gap: 8,
-    alignItems: 'flex-end',
-  },
-  turnInput: {
-    flex: 1,
-    background: '#0f1117',
-    border: '1px solid #2d3148',
-    borderRadius: 8,
-    color: '#e2e8f0',
-    fontSize: 13,
-    padding: '8px 12px',
-    resize: 'none',
-    outline: 'none',
-    lineHeight: 1.5,
-    fontFamily: 'inherit',
-    minHeight: 38,
-    maxHeight: 140,
-  },
-  turnSendBtn: {
-    padding: '8px 16px',
-    borderRadius: 8,
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 600,
-    background: '#3b82f6',
-    color: '#fff',
-    flexShrink: 0,
-    alignSelf: 'flex-end',
-  },
-  newConvoBtn: {
-    padding: '4px 12px',
-    borderRadius: 6,
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 600,
-    background: '#3b82f6',
-    color: '#fff',
-  },
-  agentSelect: {
-    background: '#0f1117',
-    border: '1px solid #2d3148',
-    borderRadius: 8,
-    color: '#e2e8f0',
-    fontSize: 13,
-    padding: '8px 12px',
-    outline: 'none',
-    flexShrink: 0,
   },
 }
 
@@ -306,7 +258,7 @@ function getOverallStatus(convo) {
   return last?.status || first?.status || 'unknown'
 }
 
-function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
+const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
   const status = getOverallStatus(convo)
   const lastSession = convo.last_session
   const agentName = lastSession?.agent_name
@@ -336,7 +288,7 @@ function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
       </div>
     </div>
   )
-}
+})
 
 const COLLAPSE_LINE_THRESHOLD = 3
 
@@ -366,7 +318,7 @@ function CollapsiblePre({ text, bg }) {
   )
 }
 
-function CollapsibleMarkdown({ text, viewMode }) {
+const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode }) {
   const lines = text.split('\n').length
   const collapsible = lines > COLLAPSE_LINE_THRESHOLD
   const [expanded, setExpanded] = useState(false)
@@ -395,9 +347,9 @@ function CollapsibleMarkdown({ text, viewMode }) {
       )}
     </>
   )
-}
+})
 
-function ToolCallCard({ call }) {
+const ToolCallCard = memo(function ToolCallCard({ call }) {
   const isAgent = call.FuncName?.startsWith('ag__')
   const displayName = isAgent ? call.FuncName.slice(4) : call.FuncName
   const input = isAgent ? (call.Params?.input || '') : null
@@ -420,9 +372,9 @@ function ToolCallCard({ call }) {
       }
     </div>
   )
-}
+})
 
-function ToolResultCard({ result, index }) {
+const ToolResultCard = memo(function ToolResultCard({ result, index }) {
   const data = result?.data
   const isStringData = typeof data === 'string'
   const isSuccess = result?.status === 'success' || result?.status == null
@@ -446,9 +398,9 @@ function ToolResultCard({ result, index }) {
       }
     </div>
   )
-}
+})
 
-function MessageBubble({ msg }) {
+const MessageBubble = memo(function MessageBubble({ msg, idx }) {
   const role = msg.Role || msg.role || 'unknown'
   const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
@@ -494,7 +446,7 @@ function MessageBubble({ msg }) {
       </div>
     </div>
   )
-}
+})
 
 function normalizeConvos(data) {
   if (!data) return { convos: [], markers: [] }
@@ -579,7 +531,6 @@ export default function ConversationsPage() {
   const [cancellingID, setCancellingID] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [isHistoryPaused, setIsHistoryPaused] = useState(false)
-  const [turnText, setTurnText] = useState('')
   const [isSendingTurn, setIsSendingTurn] = useState(false)
   const [isNewConvo, setIsNewConvo] = useState(false)
   const [agents, setAgents] = useState([])
@@ -659,7 +610,7 @@ export default function ConversationsPage() {
   useEffect(() => {
     if (!selectedID) { setHistory([]); return }
     fetchHistory(false)
-  }, [fetchHistory]) // fetchHistory identity changes when selectedID or creds change
+  }, [fetchHistory])
 
   const handleCancelConvo = useCallback(async (convoID) => {
     setCancellingID(convoID)
@@ -673,11 +624,9 @@ export default function ConversationsPage() {
     }
   }, [creds, fetchConvos])
 
-  const handleSendTurn = useCallback(async () => {
-    const text = turnText.trim()
+  const handleSendTurn = useCallback(async (text) => {
     if (!text || !selectedID) return
     setIsSendingTurn(true)
-    setTurnText('')
     try {
       await startTurn(creds, selectedID, text)
       fetchConvos('poll')
@@ -687,16 +636,14 @@ export default function ConversationsPage() {
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, selectedID, turnText, fetchConvos, fetchHistory])
+  }, [creds, selectedID, fetchConvos, fetchHistory])
 
-  const handleSendNewConvo = useCallback(async () => {
-    const text = turnText.trim()
-    if (!text || !selectedAgent) return
+  const handleSendNewConvo = useCallback(async (agent, text) => {
+    if (!text || !agent) return
     setIsSendingTurn(true)
-    setTurnText('')
     try {
-      const raw = await startNewConvo(creds, selectedAgent, text)
-      // Unwrap node envelope: { "<node>": {"convo_id": "..."} }
+      const raw = await startNewConvo(creds, agent, text)
+      // Unwrap node envelope
       const result = (raw && !Array.isArray(raw) && typeof raw === 'object')
         ? (raw.convo_id ? raw : Object.values(raw).find((v) => v?.convo_id) ?? raw)
         : raw
@@ -708,21 +655,18 @@ export default function ConversationsPage() {
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, selectedAgent, turnText, fetchConvos])
+  }, [creds, fetchConvos])
 
   const handleNewConvoClick = useCallback(() => {
     setIsNewConvo(true)
     setSelectedID(null)
     setHistory([])
-    setTurnText('')
   }, [])
 
   // fetch agent list once on mount
   useEffect(() => {
     listAgents(creds)
       .then((data) => {
-        // The API layer wraps payload as { "<node-id>": <value> }.
-        // Unwrap one level if data is a plain object (not an array).
         let names = data
         if (data && !Array.isArray(data) && typeof data === 'object') {
           const vals = Object.values(data)
@@ -735,11 +679,20 @@ export default function ConversationsPage() {
       .catch(() => {})
   }, [creds])
 
-  const selectedConvo = convos.find((c) => c.convo_id === selectedID)
-  const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo) === 'active'
-  // A top-level convo has no parent (unified_convo_id equals its own convo_id or is absent).
-  const isTopLevelConvo = selectedConvo != null &&
-    (!selectedConvo.unified_convo_id || selectedConvo.unified_convo_id === selectedConvo.convo_id)
+  // Memoized derived values
+  const treeItems = useMemo(() => buildConvoTree(convos), [convos])
+  const selectedConvo = useMemo(
+    () => convos.find((c) => c.convo_id === selectedID),
+    [convos, selectedID]
+  )
+  const isSelectedConvoActive = useMemo(
+    () => selectedConvo != null && getOverallStatus(selectedConvo) === 'active',
+    [selectedConvo]
+  )
+  const isTopLevelConvo = useMemo(
+    () => selectedConvo != null && (!selectedConvo.unified_convo_id || selectedConvo.unified_convo_id === selectedConvo.convo_id),
+    [selectedConvo]
+  )
 
   // auto-refresh history when the selected conversation is active
   useEffect(() => {
@@ -771,7 +724,7 @@ export default function ConversationsPage() {
             {lastRefreshedAt && (
               <span style={s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
             )}
-            <button style={s.newConvoBtn} onClick={handleNewConvoClick}>+ New</button>
+            <button style={{ ...s.btn, background: "#3b82f6", color: "#fff" }} onClick={handleNewConvoClick}>+ New</button>
             <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
               {isPaused ? '▶ Resume' : '⏸ Pause'}
             </button>
@@ -785,7 +738,7 @@ export default function ConversationsPage() {
           {convos.length === 0 && !loading && (
             <div style={s.empty}>No conversations yet</div>
           )}
-          {buildConvoTree(convos).map(({ convo: c, children }) => (
+          {treeItems.map(({ convo: c, children }) => (
             <div key={c.convo_id}>
               <ConvoCard
                 convo={c}
@@ -853,61 +806,29 @@ export default function ConversationsPage() {
             <div style={s.empty}>No messages in history</div>
           )}
           {history.map((msg, i) => (
-            <MessageBubble key={i} msg={msg} />
+            <MessageBubble key={`${i}`} msg={msg} idx={i} />
           ))}
           <div ref={historyEndRef} />
         </div>
         {isNewConvo && (
           <div style={s.turnInputArea}>
-            <select
-              style={s.agentSelect}
-              value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              disabled={isSendingTurn}
-            >
-              {agents.length === 0 && <option value="">No agents</option>}
-              {agents.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <textarea
-              style={s.turnInput}
-              rows={1}
-              placeholder="Type your first message…"
-              value={turnText}
-              onChange={(e) => setTurnText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendNewConvo() }
-              }}
-              disabled={isSendingTurn}
+            <NewConvoInput
+              agents={agents}
+              selectedAgent={selectedAgent}
+              onAgentChange={setSelectedAgent}
+              onSend={handleSendNewConvo}
+              isSending={isSendingTurn}
             />
-            <button
-              style={{ ...s.turnSendBtn, opacity: isSendingTurn || !turnText.trim() || !selectedAgent ? 0.5 : 1 }}
-              onClick={handleSendNewConvo}
-              disabled={isSendingTurn || !turnText.trim() || !selectedAgent}
-            >
-              {isSendingTurn ? '…' : 'Start'}
-            </button>
           </div>
         )}
         {!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
           <div style={s.turnInputArea}>
-            <textarea
-              style={s.turnInput}
-              rows={1}
+            <TurnInputArea
+              onSubmit={handleSendTurn}
+              isSending={isSendingTurn}
               placeholder="Start a new turn…"
-              value={turnText}
-              onChange={(e) => setTurnText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendTurn() }
-              }}
-              disabled={isSendingTurn}
+              buttonLabel="Send"
             />
-            <button
-              style={{ ...s.turnSendBtn, opacity: isSendingTurn || !turnText.trim() ? 0.5 : 1 }}
-              onClick={handleSendTurn}
-              disabled={isSendingTurn || !turnText.trim()}
-            >
-              {isSendingTurn ? '…' : 'Send'}
-            </button>
           </div>
         )}
       </div>
