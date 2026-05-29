@@ -149,6 +149,13 @@ const s = {
     lineHeight: 1.6,
   },
   toolCallID: { fontSize: 10, color: '#475569', marginTop: 2 },
+  msgTokenFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    fontSize: 10,
+    color: '#475569',
+    marginTop: 4,
+  },
   toolCallCard: {
     background: '#0d1017',
     borderRadius: 6,
@@ -289,18 +296,20 @@ function truncateID(id) {
   return id.length > 20 ? id.slice(0, 8) + '…' + id.slice(-6) : id
 }
 
-function getOverallStatus(sessions) {
-  if (!Array.isArray(sessions) || sessions.length === 0) return 'unknown'
-  if (sessions.some((s) => s.status === 'active')) return 'active'
+function getOverallStatus(convo) {
+  const first = convo?.first_session
+  const last = convo?.last_session
+  if (!last && !first) return 'unknown'
+  if (first?.status === 'active' || last?.status === 'active') return 'active'
   // Use the latest session's terminal status so that a cancelled/failed turn
   // doesn't permanently taint the conversation once the user continues.
-  return sessions[sessions.length - 1]?.status || 'unknown'
+  return last?.status || first?.status || 'unknown'
 }
 
 function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
-  const status = getOverallStatus(convo.sessions)
-  const latestSession = convo.sessions?.[convo.sessions.length - 1]
-  const agentNames = [...new Set((convo.sessions || []).map((s) => s.agent_name).filter(Boolean))]
+  const status = getOverallStatus(convo)
+  const lastSession = convo.last_session
+  const agentName = lastSession?.agent_name
 
   return (
     <div style={s.convoCard(selected)} onClick={onClick}>
@@ -308,9 +317,7 @@ function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
       {convo.first_turn && <div style={s.firstTurnPreview} title={convo.first_turn}>{convo.first_turn}</div>}
       <div style={s.convoRow}>
         <span style={s.badge(STATUS_COLOR[status])}>{status}</span>
-        {agentNames.map((name) => (
-          <span key={name} style={s.agentName}>{name}</span>
-        ))}
+        {agentName && <span style={s.agentName}>{agentName}</span>}
         {status === 'active' && onCancel && (
           <button
             style={s.cancelBtn}
@@ -322,9 +329,9 @@ function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
         )}
       </div>
       <div style={s.convoRow}>
-        <span style={s.ts}>{fmtTime(latestSession?.updated_at)}</span>
-        {convo.sessions?.length > 0 && (
-          <span style={{ fontSize: 11, color: '#475569' }}>{convo.sessions.length} session{convo.sessions.length !== 1 ? 's' : ''}</span>
+        <span style={s.ts}>{fmtTime(lastSession?.updated_at)}</span>
+        {lastSession?.input_tokens > 0 && (
+          <span style={{ fontSize: 11, color: '#475569' }}>tokens: {lastSession.input_tokens.toLocaleString()}/{(lastSession.output_tokens || 0).toLocaleString()}</span>
         )}
       </div>
     </div>
@@ -479,6 +486,11 @@ function MessageBubble({ msg }) {
           : <div style={s.msgContent}>{content}</div>
         )}
         {msg.tool_call_id && <div style={s.toolCallID}>tool_call_id: {msg.tool_call_id}</div>}
+        {(msg.input_tokens > 0 || msg.output_tokens > 0) && (
+          <div style={s.msgTokenFooter}>
+            tokens: {(msg.input_tokens || 0).toLocaleString()}/{(msg.output_tokens || 0).toLocaleString()}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -527,8 +539,8 @@ function mergeConvos(existing, incoming) {
   incoming.forEach((c) => m.set(c.convo_id, c))
   const out = Array.from(m.values())
   out.sort((a, b) => {
-    const ta = a.sessions?.[a.sessions.length - 1]?.updated_at ? new Date(a.sessions[a.sessions.length - 1].updated_at).getTime() : 0
-    const tb = b.sessions?.[b.sessions.length - 1]?.updated_at ? new Date(b.sessions[b.sessions.length - 1].updated_at).getTime() : 0
+    const ta = a.last_session?.updated_at ? new Date(a.last_session.updated_at).getTime() : 0
+    const tb = b.last_session?.updated_at ? new Date(b.last_session.updated_at).getTime() : 0
     return tb - ta
   })
   return out
@@ -724,7 +736,7 @@ export default function ConversationsPage() {
   }, [creds])
 
   const selectedConvo = convos.find((c) => c.convo_id === selectedID)
-  const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo.sessions) === 'active'
+  const isSelectedConvoActive = selectedConvo != null && getOverallStatus(selectedConvo) === 'active'
   // A top-level convo has no parent (unified_convo_id equals its own convo_id or is absent).
   const isTopLevelConvo = selectedConvo != null &&
     (!selectedConvo.unified_convo_id || selectedConvo.unified_convo_id === selectedConvo.convo_id)
