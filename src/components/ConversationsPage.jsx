@@ -251,13 +251,23 @@ function truncateID(id) {
 function getOverallStatus(convo) {
   const first = convo?.first_session
   const last = convo?.last_session
-  if (!last && !first) return 'unknown'
-  if (first?.status === 'active' || last?.status === 'active') return 'active'
-  // Use the latest session's terminal status so that a cancelled/failed turn
-  // doesn't permanently taint the conversation once the user continues.
-  return last?.status || first?.status || 'unknown'
-}
+  if (!last && !first) return 'unknown';
+  if (first?.status === 'active' || last?.status === 'active') return 'active';
 
+  // Check if the conversation is a parent conversation
+  if (convo.unified_convo_id && convo.unified_convo_id !== convo.convo_id) {
+    // This is a child conversation (sub-agent), so return its status as-is
+    return last?.status || first?.status || 'unknown';
+  } else {
+    // This is a parent conversation, so only consider its own sessions
+    // and ignore the status of child conversations
+    if (last?.unified_convo_id === convo.convo_id) {
+      return last?.status || first?.status || 'unknown';
+    } else {
+      return 'unknown';
+    }
+  }
+}
 const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, cancelling }) {
   const status = getOverallStatus(convo)
   const lastSession = convo.last_session
