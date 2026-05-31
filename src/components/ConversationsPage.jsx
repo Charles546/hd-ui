@@ -359,6 +359,9 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
         {lastSession?.input_tokens > 0 && (
           <span style={{ fontSize: 11, color: '#475569' }}>tokens: {lastSession.input_tokens.toLocaleString()}/{(lastSession.output_tokens || 0).toLocaleString()}</span>
         )}
+        {convo?.total_tokens > 0 && (
+          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>total: {convo.total_tokens.toLocaleString()}</span>
+        )}
       </div>
     </div>
   )
@@ -682,46 +685,6 @@ export default function ConversationsPage() {
       .catch((err) => setHistoryError(err.message))
       .finally(() => setHistoryLoading(false))
   }, [selectedID, creds])
-
-  // Initialize selectedID from the URL path (/conversations or /conversations/:id)
-  useEffect(() => {
-    const parsePath = () => {
-      const p = window.location.pathname || ''
-      if (p.startsWith('/conversations')) {
-        const rest = p.replace(/^\/conversations\/?/, '')
-        if (rest) {
-          try {
-            const id = decodeURIComponent(rest)
-            setSelectedID(id)
-            return
-          } catch {
-            setSelectedID(rest)
-            return
-          }
-        }
-      }
-    }
-    parsePath()
-    const onPop = () => parsePath()
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-
-  // Update URL when selectedID changes
-  useEffect(() => {
-    const base = '/conversations'
-    const target = selectedID ? `${base}/${encodeURIComponent(selectedID)}` : base
-    const current = window.location.pathname
-    if (current !== target) {
-      window.history.pushState({}, '', target)
-    }
-    // when selection changes, fetch history
-    if (selectedID) {
-      fetchHistory(false)
-    } else {
-      setHistory([])
-    }
-  }, [selectedID])
 
   // load history when selection changes
   useEffect(() => {
