@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents } from '../api'
 import { useAuth } from '../auth/AuthContext'
@@ -262,14 +263,87 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
   const status = getOverallStatus(convo)
   const lastSession = convo.last_session
   const agentName = lastSession?.agent_name
+  const groupMatch = (convo.convo_id || '').match(/_g(\d+)$/)
+  const groupNum = groupMatch ? groupMatch[1] : null
+  const [copyState, setCopyState] = useState('idle') // 'idle' | 'success' | 'error'
+  const idRef = useRef(null)
+  const iconRef = useRef(null)
+  const [bubblePos, setBubblePos] = useState(null)
+
+  const handleCopyID = async (e) => {
+    e.stopPropagation()
+    const id = convo.convo_id || ''
+    try {
+      let ok = false
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(id)
+          ok = true
+        } catch (err) {
+          // fall through to fallback
+        }
+      }
+      if (!ok) {
+        const ta = document.createElement('textarea')
+        ta.value = id
+        // place off-screen
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.select()
+        try {
+          ok = document.execCommand('copy')
+        } catch (err) {
+          ok = false
+        }
+        document.body.removeChild(ta)
+      }
+      if (ok) {
+        setCopyState('success')
+        // anchor bubble to the copy icon center if available, otherwise fall back to id container
+        let r = null
+        if (iconRef.current && iconRef.current.getBoundingClientRect) r = iconRef.current.getBoundingClientRect()
+        else if (idRef.current && idRef.current.getBoundingClientRect) r = idRef.current.getBoundingClientRect()
+        if (r) setBubblePos({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top) })
+        setTimeout(() => { setCopyState('idle'); setBubblePos(null) }, 3000)
+      } else {
+        setCopyState('error')
+        let r = null
+        if (iconRef.current && iconRef.current.getBoundingClientRect) r = iconRef.current.getBoundingClientRect()
+        else if (idRef.current && idRef.current.getBoundingClientRect) r = idRef.current.getBoundingClientRect()
+        if (r) setBubblePos({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top) })
+        setTimeout(() => { setCopyState('idle'); setBubblePos(null) }, 3000)
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
 
   return (
     <div style={s.convoCard(selected)} onClick={onClick}>
-      <div style={s.convoID} title={convo.convo_id}>{truncateID(convo.convo_id)}</div>
+      <div ref={idRef} style={{ ...s.convoID, position: 'relative' }} title={convo.convo_id}>
+        {truncateID(convo.convo_id)}
+        <span
+          ref={iconRef}
+          onClick={handleCopyID}
+          title="Copy convo ID"
+          aria-label="Copy convo ID"
+          style={{ fontSize: 12, marginLeft: 8, color: '#64748b', cursor: 'pointer' }}
+        >
+          📋
+        </span>
+        {copyState !== 'idle' && bubblePos && ReactDOM.createPortal(
+          <div style={{ position: 'fixed', left: bubblePos.x, top: bubblePos.y - 6, transform: 'translate(-50%, -100%)', background: copyState === 'success' ? '#064e3b' : '#4c1f1f', color: '#d1fae5', padding: '6px 10px', borderRadius: 6, fontSize: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.6)', zIndex: 9999 }}>
+            {copyState === 'success' ? 'Copied' : 'Copy failed'}
+          </div>,
+          document.body
+        )}
+      </div>
       {convo.first_turn && <div style={s.firstTurnPreview} title={convo.first_turn}>{convo.first_turn}</div>}
       <div style={s.convoRow}>
         <span style={s.badge(STATUS_COLOR[status])}>{status}</span>
         {agentName && <span style={s.agentName}>{agentName}</span>}
+        {groupNum && <span style={s.badge('#a78bfa')}>{`history ${groupNum}`}</span>}
         {status === 'active' && onCancel && (
           <button
             style={s.cancelBtn}
@@ -400,7 +474,7 @@ const ToolResultCard = memo(function ToolResultCard({ result, index }) {
   )
 })
 
-const MessageBubble = memo(function MessageBubble({ msg, idx }) {
+const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true }) {
   const role = msg.Role || msg.role || 'unknown'
   const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
@@ -423,12 +497,12 @@ const MessageBubble = memo(function MessageBubble({ msg, idx }) {
             </select>
           )}
         </div>
-        {toolCalls.length > 0 && (
+        {showTools && toolCalls.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
             {toolCalls.map((call, i) => <ToolCallCard key={i} call={call} />)}
           </div>
         )}
-        {toolResults.length > 0 && (
+        {showTools && toolResults.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
             {toolResults.map((result, i) => <ToolResultCard key={i} result={result} index={i} />)}
           </div>
@@ -535,6 +609,9 @@ export default function ConversationsPage() {
   const [isNewConvo, setIsNewConvo] = useState(false)
   const [agents, setAgents] = useState([])
   const [selectedAgent, setSelectedAgent] = useState('')
+  const [showTools, setShowTools] = useState(false)
+  const [showSubAgents, setShowSubAgents] = useState(false)
+  const [showArchivedGroups, setShowArchivedGroups] = useState(false)
   const timerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
@@ -681,6 +758,50 @@ export default function ConversationsPage() {
 
   // Memoized derived values
   const treeItems = useMemo(() => buildConvoTree(convos), [convos])
+  const filteredTreeItems = useMemo(() => {
+    if (showSubAgents && showArchivedGroups) return treeItems
+    return treeItems.map(({ convo, children }) => {
+      const keepChild = (child) => {
+        // hide one-off sub-agent convos: children whose convo_id does NOT start with parent convo_id
+        if (!showSubAgents) {
+          if (child.convo_id && convo.convo_id && !child.convo_id.startsWith(convo.convo_id)) return false
+        }
+        // hide archived grouped convos like <id>_g<number>
+        if (!showArchivedGroups) {
+          if (/_g\d+$/i.test(child.convo_id)) return false
+        }
+        return true
+      }
+      const filteredChildren = children.filter(keepChild)
+      // place archived grouped convos (suffix _g<number>) on top, ordered by the number desc
+      const groupRe = /_g(\d+)$/i
+      const groups = []
+      const stateful = []
+      const oneoffs = []
+      for (const ch of filteredChildren) {
+        const m = String(ch.convo_id || '').match(groupRe)
+        if (m) groups.push({ ch, n: parseInt(m[1], 10) || 0 })
+        else if (ch.convo_id && convo.convo_id && ch.convo_id.startsWith(convo.convo_id)) stateful.push(ch)
+        else oneoffs.push(ch)
+      }
+      // archived groups first (by group number desc), then stateful (recent first), then one-offs (recent first)
+      groups.sort((a, b) => b.n - a.n)
+      const byRecent = (a, b) => {
+        const ta = a.last_session?.updated_at ? new Date(a.last_session.updated_at).getTime() : 0
+        const tb = b.last_session?.updated_at ? new Date(b.last_session.updated_at).getTime() : 0
+        return tb - ta
+      }
+      stateful.sort(byRecent)
+      oneoffs.sort(byRecent)
+      const sortedChildren = groups.map((g) => g.ch).concat(stateful, oneoffs)
+      let includeParent = true
+      // only hide parent when it's an archived grouped convo
+      if (!showArchivedGroups) {
+        if (/_g\d+$/i.test(convo.convo_id)) includeParent = false
+      }
+      return includeParent ? { convo, children: sortedChildren } : null
+    }).filter(Boolean)
+  }, [treeItems, showSubAgents, showArchivedGroups])
   const selectedConvo = useMemo(
     () => convos.find((c) => c.convo_id === selectedID),
     [convos, selectedID]
@@ -733,12 +854,22 @@ export default function ConversationsPage() {
             </button>
           </div>
         </div>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #2d3148', background: '#0f1117', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <input type="checkbox" checked={showSubAgents} onChange={(e) => setShowSubAgents(e.target.checked)} />
+            <span>Show one-offs</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <input type="checkbox" checked={showArchivedGroups} onChange={(e) => setShowArchivedGroups(e.target.checked)} />
+            <span>Show summarized history</span>
+          </label>
+        </div>
         {error && <div style={s.err}>{error}</div>}
         <div style={s.scrollArea}>
           {convos.length === 0 && !loading && (
             <div style={s.empty}>No conversations yet</div>
           )}
-          {treeItems.map(({ convo: c, children }) => (
+          {filteredTreeItems.map(({ convo: c, children }) => (
             <div key={c.convo_id}>
               <ConvoCard
                 convo={c}
@@ -783,11 +914,17 @@ export default function ConversationsPage() {
                 ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
                 : 'History'}
           </span>
-          {isSelectedConvoActive && (
-            <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
-              {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+              <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+              <span>Show tools</span>
+            </label>
+            {isSelectedConvoActive && (
+              <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+                {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+            )}
+          </div>
         </div>
         <div style={s.historyScroll}>
           {isNewConvo && (
@@ -805,9 +942,11 @@ export default function ConversationsPage() {
           {!isNewConvo && selectedID && !historyLoading && !historyError && history.length === 0 && (
             <div style={s.empty}>No messages in history</div>
           )}
-          {history.map((msg, i) => (
-            <MessageBubble key={`${i}`} msg={msg} idx={i} />
-          ))}
+          {history.map((msg, i) => {
+            const role = msg.Role || msg.role || ''
+            if (!showTools && (role === 'tool' || role === 'tool_result')) return null
+            return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} />
+          })}
           <div ref={historyEndRef} />
         </div>
         {isNewConvo && (
