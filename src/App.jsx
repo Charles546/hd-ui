@@ -191,6 +191,9 @@ export default function App() {
     if (view === 'log-stream') {
       targetPath = buildLogStreamPath(logProvider, logPodID, logProviderData, ghSlug, logStreamToken)
     }
+    if (view === 'conversations') {
+      targetPath = '/conversations'
+    }
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {

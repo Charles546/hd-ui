@@ -683,6 +683,46 @@ export default function ConversationsPage() {
       .finally(() => setHistoryLoading(false))
   }, [selectedID, creds])
 
+  // Initialize selectedID from the URL path (/conversations or /conversations/:id)
+  useEffect(() => {
+    const parsePath = () => {
+      const p = window.location.pathname || ''
+      if (p.startsWith('/conversations')) {
+        const rest = p.replace(/^\/conversations\/?/, '')
+        if (rest) {
+          try {
+            const id = decodeURIComponent(rest)
+            setSelectedID(id)
+            return
+          } catch {
+            setSelectedID(rest)
+            return
+          }
+        }
+      }
+    }
+    parsePath()
+    const onPop = () => parsePath()
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Update URL when selectedID changes
+  useEffect(() => {
+    const base = '/conversations'
+    const target = selectedID ? `${base}/${encodeURIComponent(selectedID)}` : base
+    const current = window.location.pathname
+    if (current !== target) {
+      window.history.pushState({}, '', target)
+    }
+    // when selection changes, fetch history
+    if (selectedID) {
+      fetchHistory(false)
+    } else {
+      setHistory([])
+    }
+  }, [selectedID])
+
   // load history when selection changes
   useEffect(() => {
     if (!selectedID) { setHistory([]); return }
