@@ -7,6 +7,7 @@ import TurnInputArea from './TurnInputArea'
 import NewConvoInput from './NewConvoInput'
 
 const POLL_INTERVAL_MS = 10000
+const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const INITIAL_LOOK_BACK = 12
 const POLL_LOOK_BACK = 2
 
@@ -222,6 +223,8 @@ const s = {
     background: '#2d3148', color: '#94a3b8',
   },
   refreshLabel: { fontSize: 11, color: '#64748b' },
+  paused: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#f6c90e22', color: '#f6c90e', border: '1px solid #f6c90e44' },
+  active: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#4ade8022', color: '#4ade80', border: '1px solid #4ade8044' },
   convoChildren: {
     marginLeft: 14,
     paddingLeft: 8,
@@ -615,9 +618,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [showTools, setShowTools] = useState(false)
   const [showSubAgents, setShowSubAgents] = useState(false)
   const [showArchivedGroups, setShowArchivedGroups] = useState(false)
+  const [isIdle, setIsIdle] = useState(false)
   const timerRef = useRef(null)
+  const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
+  const wasIdleRef = useRef(false)
+  const wasHistoryIdleRef = useRef(false)
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
@@ -660,12 +667,27 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     fetchConvos('initial')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // auto-poll — suspended while isPaused
+  // Detect transition from idle to active and fetch immediately
   useEffect(() => {
-    if (isPaused) return
+    const wasIdle = wasIdleRef.current
+    wasIdleRef.current = isIdle
+
+    if (wasIdle && !isIdle && !isPaused) {
+      // Transitioning from idle to active - fetch immediately
+      fetchConvos('poll')
+    }
+  }, [isIdle, isPaused, fetchConvos])
+
+  // auto-poll — suspended while isPaused or idle
+  useEffect(() => {
+    if (isPaused || isIdle) {
+      clearInterval(timerRef.current)
+      return
+    }
+    
     timerRef.current = setInterval(() => fetchConvos('poll'), POLL_INTERVAL_MS)
     return () => clearInterval(timerRef.current)
-  }, [fetchConvos, isPaused])
+  }, [fetchConvos, isPaused, isIdle])
 
   const fetchHistory = useCallback((silent = false) => {
     if (!selectedID) return
@@ -830,12 +852,23 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     [selectedConvo]
   )
 
-  // auto-refresh history when the selected conversation is active
+  // Detect transition from idle to active for history and fetch immediately
   useEffect(() => {
-    if (!isSelectedConvoActive || isHistoryPaused) return
+    const wasHistoryIdle = wasHistoryIdleRef.current
+    wasHistoryIdleRef.current = isIdle
+
+    if (wasHistoryIdle && !isIdle && isSelectedConvoActive && !isHistoryPaused) {
+      // Transitioning from idle to active with an active conversation - fetch history immediately
+      fetchHistory(true)
+    }
+  }, [isIdle, isSelectedConvoActive, isHistoryPaused, fetchHistory])
+
+  // auto-refresh history when the selected conversation is active (unless idle or paused)
+  useEffect(() => {
+    if (!isSelectedConvoActive || isHistoryPaused || isIdle) return
     const timer = setInterval(() => fetchHistory(true), POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [fetchHistory, isSelectedConvoActive, isHistoryPaused])
+  }, [fetchHistory, isSelectedConvoActive, isHistoryPaused, isIdle])
 
   // final refresh when conversation transitions from active -> inactive
   useEffect(() => {
@@ -849,6 +882,50 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   useEffect(() => {
     historyEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
+
+  // Handle idle timeout — pause auto-refresh after 2 minutes of inactivity
+  useEffect(() => {
+    const lastActivityTimeRef = { current: Date.now() }
+    const ACTIVITY_THROTTLE_MS = 1000 // Only process activity once per second max
+
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimerRef.current)
+      setIsIdle(false)
+
+      idleTimerRef.current = setTimeout(() => {
+        setIsIdle(true)
+      }, IDLE_TIMEOUT_MS)
+    }
+
+    const handleActivity = () => {
+      const now = Date.now()
+      const timeSinceLastActivity = now - lastActivityTimeRef.current
+      
+      // Only reset timer if enough time has passed since last activity
+      if (timeSinceLastActivity > ACTIVITY_THROTTLE_MS) {
+        lastActivityTimeRef.current = now
+        resetIdleTimer()
+      }
+    }
+
+    if (isPaused) {
+      clearTimeout(idleTimerRef.current)
+      return
+    }
+
+    resetIdleTimer()
+
+    document.addEventListener('mousemove', handleActivity)
+    document.addEventListener('keydown', handleActivity)
+    document.addEventListener('touchstart', handleActivity)
+
+    return () => {
+      clearTimeout(idleTimerRef.current)
+      document.removeEventListener('mousemove', handleActivity)
+      document.removeEventListener('keydown', handleActivity)
+      document.removeEventListener('touchstart', handleActivity)
+    }
+  }, [isPaused])
 
   return (
     <div style={s.page}>
@@ -867,6 +944,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             <button style={s.btn} onClick={() => fetchConvos('initial')} disabled={loading}>
               {loading ? '…' : 'Refresh'}
             </button>
+            {isPaused ? (
+              <span style={s.paused}>paused</span>
+            ) : isIdle ? (
+              <span style={s.paused}>idle</span>
+            ) : (
+              <span style={s.active}>active</span>
+            )}
           </div>
         </div>
         <div style={{ padding: '8px 16px', borderBottom: '1px solid #2d3148', background: '#0f1117', display: 'flex', gap: 12, alignItems: 'center' }}>

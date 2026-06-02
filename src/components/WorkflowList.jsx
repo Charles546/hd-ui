@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import SessionCard from './SessionCard'
 
 const POLL_INTERVAL_MS = 5000
+const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const DEFAULT_VISIBLE_LEVELS = 2
 const INITIAL_LOOK_BACK = 12
 const POLL_LOOK_BACK = 2
@@ -26,7 +27,8 @@ const s = {
   controls: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' },
   badge: { fontSize: 12, color: '#94a3b8', background: '#1a1d27', border: '1px solid #2d3148', borderRadius: 20, padding: '3px 10px' },
   refreshed: { fontSize: 12, color: '#64748b' },
-  paused: { fontSize: 12, color: '#f6c90e' },
+  paused: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#f6c90e22', color: '#f6c90e', border: '1px solid #f6c90e44' },
+  active: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#4ade8022', color: '#4ade80', border: '1px solid #4ade8044' },
   btn: (variant) => ({
     padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13,
     background: variant === 'primary' ? '#f6c90e' : '#2d3148',
@@ -164,8 +166,11 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
   const [expanded, setExpanded] = useState({})
   const [oldestAsOf, setOldestAsOf] = useState('')
   const [isPageVisible, setIsPageVisible] = useState(true)
+  const [isIdle, setIsIdle] = useState(false)
   const timerRef = useRef(null)
+  const idleTimerRef = useRef(null)
   const pageVisibleRef = useRef(true)
+  const wasIdleRef = useRef(false)
 
   const parseSessionEntry = (entry) => {
     if (!entry) {
@@ -401,6 +406,17 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
     fetchSessions('initial')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Detect transition from idle to active and fetch immediately
+  useEffect(() => {
+    const wasIdle = wasIdleRef.current
+    wasIdleRef.current = isIdle
+
+    if (wasIdle && !isIdle && autoRefresh) {
+      // Transitioning from idle to active - fetch immediately
+      fetchSessions('poll')
+    }
+  }, [isIdle, autoRefresh, fetchSessions])
+
   useEffect(() => {
     const stopPolling = () => {
       clearInterval(timerRef.current)
@@ -409,7 +425,7 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
 
     const startPolling = (refreshNow = false) => {
       stopPolling()
-      if (!autoRefresh || !pageVisibleRef.current) {
+      if (!autoRefresh || !pageVisibleRef.current || isIdle) {
         return
       }
 
@@ -453,7 +469,51 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
     }
-  }, [autoRefresh, fetchSessions])
+  }, [autoRefresh, fetchSessions, isIdle])
+
+  // Handle idle timeout — pause auto-refresh after 2 minutes of inactivity
+  useEffect(() => {
+    const lastActivityTimeRef = { current: Date.now() }
+    const ACTIVITY_THROTTLE_MS = 1000 // Only process activity once per second max
+
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimerRef.current)
+      setIsIdle(false)
+
+      idleTimerRef.current = setTimeout(() => {
+        setIsIdle(true)
+      }, IDLE_TIMEOUT_MS)
+    }
+
+    const handleActivity = () => {
+      const now = Date.now()
+      const timeSinceLastActivity = now - lastActivityTimeRef.current
+      
+      // Only reset timer if enough time has passed since last activity
+      if (timeSinceLastActivity > ACTIVITY_THROTTLE_MS) {
+        lastActivityTimeRef.current = now
+        resetIdleTimer()
+      }
+    }
+
+    if (!autoRefresh) {
+      clearTimeout(idleTimerRef.current)
+      return
+    }
+
+    resetIdleTimer()
+
+    document.addEventListener('mousemove', handleActivity)
+    document.addEventListener('keydown', handleActivity)
+    document.addEventListener('touchstart', handleActivity)
+
+    return () => {
+      clearTimeout(idleTimerRef.current)
+      document.removeEventListener('mousemove', handleActivity)
+      document.removeEventListener('keydown', handleActivity)
+      document.removeEventListener('touchstart', handleActivity)
+    }
+  }, [autoRefresh])
 
   const fetchMore = useCallback(() => {
     if (!oldestAsOf) {
@@ -470,8 +530,10 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
     ? lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : 'never'
   const pollingStatus = !autoRefresh
-    ? 'Paused (manual)'
-    : (!isPageVisible ? 'Paused (tab inactive)' : '')
+    ? 'paused'
+    : isIdle
+      ? 'idle'
+      : (!isPageVisible ? 'hidden' : 'active')
 
   const visible = sessions.filter((session) => {
     const isNoop = !!session?.data?.is_noop
@@ -554,7 +616,6 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
             {loading && <span style={{ ...s.badge, color: '#f6c90e' }}>Refreshing…</span>}
             {!loading && <span style={s.badge}>{visible.length} session{visible.length !== 1 ? 's' : ''}</span>}
             <span style={s.refreshed}>Last refreshed: {lastRefreshedText}</span>
-            {pollingStatus && <span style={s.paused}>{pollingStatus}</span>}
           </div>
         </div>
         <div style={s.controls}>
@@ -562,6 +623,9 @@ export default function WorkflowList({ onForbidden, onOpenLogStream = () => {} }
             {autoRefresh ? '⏸ Pause' : '▶ Resume'}
           </button>
           <button style={s.btn()} onClick={() => fetchSessions('poll')}>↻ Refresh</button>
+          {pollingStatus && (
+            <span style={pollingStatus === 'active' ? s.active : s.paused}>{pollingStatus}</span>
+          )}
           <label style={s.checkLabel}>
             <input type="checkbox" checked={showNoop} onChange={e => setShowNoop(e.target.checked)} />
             Show no-ops
