@@ -89,7 +89,13 @@ function parseRouteLocation() {
     return { view: 'github-events', ghSlug: (params.get('gh') || '').trim() }
   }
 
-  return { view: 'events', ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
+  if (pathname.startsWith('/conversations')) {
+    const raw = pathname.replace(/^\/conversations\/?/, '')
+    const convoId = raw ? decodeURIComponent(raw) : ''
+    return { view: 'conversations', convoId, ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
+  }
+
+  return { view: 'events', convoId: '', ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
 }
 
 function buildGitHubEventsPath(ghSlug) {
@@ -108,6 +114,15 @@ function buildGitHubSecretsPath(ghSlug) {
   }
 
   return `/gh/secrets/${normalized.split('/').map((part) => encodeURIComponent(part)).join('/')}`
+}
+
+function buildConversationsPath(convoId) {
+  const normalized = String(convoId || '').trim()
+  if (!normalized) {
+    return '/conversations'
+  }
+
+  return `/conversations/${encodeURIComponent(normalized)}`
 }
 
 function buildLogStreamPath(provider, podID, providerData, ghSlug, streamToken) {
@@ -131,6 +146,7 @@ function buildLogStreamPath(provider, podID, providerData, ghSlug, streamToken) 
 export default function App() {
   const { creds, isGitHubSession } = useAuth()
   const [view, setView] = useState(() => parseRouteLocation().view)
+  const [convoId, setConvoId] = useState(() => parseRouteLocation().convoId)
   const [ghSlug, setGhSlug] = useState(() => parseRouteLocation().ghSlug)
   const [logProvider, setLogProvider] = useState(() => parseRouteLocation().provider || 'podman')
   const [logPodID, setLogPodID] = useState(() => parseRouteLocation().podID || '')
@@ -142,6 +158,7 @@ export default function App() {
     const syncFromLocation = () => {
       const route = parseRouteLocation()
       setView(route.view)
+      setConvoId(route.convoId)
       setGhSlug(route.ghSlug)
       setLogProvider(route.provider || 'podman')
       setLogPodID(route.podID || '')
@@ -192,14 +209,14 @@ export default function App() {
       targetPath = buildLogStreamPath(logProvider, logPodID, logProviderData, ghSlug, logStreamToken)
     }
     if (view === 'conversations') {
-      targetPath = '/conversations'
+      targetPath = buildConversationsPath(convoId)
     }
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {
       window.history.replaceState({}, '', targetPath)
     }
-  }, [view, ghSlug, isGitHubSession, logProvider, logPodID, logProviderData, logStreamToken])
+  }, [view, convoId, ghSlug, isGitHubSession, logProvider, logPodID, logProviderData, logStreamToken])
 
   if (window.location.pathname === '/auth/github/callback') {
     return <GitHubCallback />
@@ -281,7 +298,7 @@ export default function App() {
             onBackToEvents={openGitHubEvents}
           />
         )}
-        {view === 'conversations' && <ConversationsPage />}
+        {view === 'conversations' && <ConversationsPage initialConvoId={convoId} onConvoIdChange={setConvoId} />}
         {view !== 'conversations' && (!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
           view !== 'log-stream' && <WorkflowList onForbidden={handleEventsForbidden} onOpenLogStream={openLogStream} />
         )}

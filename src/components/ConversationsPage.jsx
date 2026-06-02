@@ -593,10 +593,10 @@ function buildConvoTree(convos) {
   return roots.map((c) => ({ convo: c, children: childrenMap.get(c.convo_id) || [] }))
 }
 
-export default function ConversationsPage() {
+export default function ConversationsPage({ initialConvoId = '', onConvoIdChange = () => {} }) {
   const { creds } = useAuth()
   const [convos, setConvos] = useState([])
-  const [selectedID, setSelectedID] = useState(null)
+  const [selectedID, setSelectedID] = useState(initialConvoId || null)
   const [history, setHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
@@ -691,6 +691,18 @@ export default function ConversationsPage() {
     if (!selectedID) { setHistory([]); return }
     fetchHistory(false)
   }, [fetchHistory])
+
+  // notify parent when selectedID changes
+  useEffect(() => {
+    onConvoIdChange(selectedID)
+  }, [selectedID, onConvoIdChange])
+
+  // sync initialConvoId from parent
+  useEffect(() => {
+    if (initialConvoId && initialConvoId !== selectedID) {
+      setSelectedID(initialConvoId)
+    }
+  }, [initialConvoId])
 
   const handleCancelConvo = useCallback(async (convoID) => {
     setCancellingID(convoID)
