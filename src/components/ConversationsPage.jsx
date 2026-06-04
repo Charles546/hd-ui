@@ -1039,7 +1039,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             <div style={s.err}>{historyError}</div>
           )}
           {!isNewConvo && selectedID && !historyLoading && !historyError && history.length === 0 && (
-            <div style={s.empty}>No messages in history</div>
+            <div style={s.empty}>
+              {selectedConvo && isSelectedConvoActive ? 'Preparing the system prompt…' : 'No messages in history'}
+            </div>
           )}
           {history.map((msg, i) => {
             const role = msg.Role || msg.role || ''
