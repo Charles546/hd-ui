@@ -63,7 +63,15 @@ const s = {
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
   colMeta: { fontSize: 12, color: '#64748b' },
-  scrollArea: { flex: 1, overflowY: 'auto', padding: 8 },
+  scrollArea: { flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column' },
+  scrollContent: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
+  loadMoreContainer: { 
+    padding: '8px 8px 0 8px',
+    textAlign: 'center', 
+    marginTop: 0,
+    flexShrink: 0,
+    borderTop: '1px solid #2d3148',
+  },
   historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 },
 
   convoCard: (selected) => ({
@@ -269,9 +277,17 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
   const groupMatch = (convo.convo_id || '').match(/_g(\d+)$/)
   const groupNum = groupMatch ? groupMatch[1] : null
   const [copyState, setCopyState] = useState('idle') // 'idle' | 'success' | 'error'
+  const [errorExpanded, setErrorExpanded] = useState(false)
   const idRef = useRef(null)
   const iconRef = useRef(null)
   const [bubblePos, setBubblePos] = useState(null)
+  const isTerminal = ['complete', 'failed', 'cancelled'].includes(status)
+  const errorReason = isTerminal ? (lastSession?.error_reason || lastSession?.errorReason) : null
+  const totalTokens = !isTerminal && lastSession?.total_tokens
+    ? convo.total_tokens + lastSession.total_tokens
+    : convo.total_tokens
+  const errorLineCount = errorReason ? errorReason.split('\n').length : 0
+  const errorCollapsible = errorLineCount > 3
 
   const handleCopyID = async (e) => {
     e.stopPropagation()
@@ -357,13 +373,32 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
           </button>
         )}
       </div>
+      {errorReason && (
+        <div>
+          <div style={{ position: 'relative', fontSize: 11, color: '#f87171', marginTop: 4, wordBreak: 'break-word', lineHeight: 1.3, ...(errorCollapsible && !errorExpanded ? { maxHeight: 60, overflow: 'hidden' } : {}) }}>
+            Error: {errorReason}
+            {errorCollapsible && !errorExpanded && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, height: 20,
+                background: 'linear-gradient(transparent, #191d2b)',
+                pointerEvents: 'none',
+              }} />
+            )}
+          </div>
+          {errorCollapsible && (
+            <button style={s.collapseToggle} onClick={() => setErrorExpanded((v) => !v)}>
+              {errorExpanded ? '▲ collapse' : '▼ expand'}
+            </button>
+          )}
+        </div>
+      )}
       <div style={s.convoRow}>
         <span style={s.ts}>{fmtTime(lastSession?.updated_at)}</span>
         {lastSession?.input_tokens > 0 && (
           <span style={{ fontSize: 11, color: '#475569' }}>tokens: {lastSession.input_tokens.toLocaleString()}/{(lastSession.output_tokens || 0).toLocaleString()}</span>
         )}
-        {convo?.total_tokens > 0 && (
-          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>total: {convo.total_tokens.toLocaleString()}</span>
+        {totalTokens > 0 && (
+          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>total: {totalTokens.toLocaleString()}</span>
         )}
       </div>
     </div>
@@ -965,38 +1000,40 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         </div>
         {error && <div style={s.err}>{error}</div>}
         <div style={s.scrollArea}>
-          {convos.length === 0 && !loading && (
-            <div style={s.empty}>No conversations yet</div>
-          )}
-          {filteredTreeItems.map(({ convo: c, children }) => (
-            <div key={c.convo_id}>
-              <ConvoCard
-                convo={c}
-                selected={c.convo_id === selectedID}
-                onClick={() => { setIsNewConvo(false); setSelectedID(c.convo_id === selectedID ? null : c.convo_id) }}
-                onCancel={handleCancelConvo}
-                cancelling={cancellingID === c.convo_id}
-              />
-              {children.length > 0 && (
-                <div style={s.convoChildren}>
-                  {children.map((child) => (
-                    <ConvoCard
-                      key={child.convo_id}
-                      convo={child}
-                      selected={child.convo_id === selectedID}
-                      onClick={() => { setIsNewConvo(false); setSelectedID(child.convo_id === selectedID ? null : child.convo_id) }}
-                      onCancel={handleCancelConvo}
-                      cancelling={cancellingID === child.convo_id}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {convos.length > 0 && (
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <button style={s.btn} onClick={() => fetchConvos('more')} disabled={isFetchingMore}>
-                {isFetchingMore ? 'Loading…' : 'Load more'}
+          <div style={s.scrollContent}>
+            {convos.length === 0 && !loading && (
+              <div style={s.empty}>No conversations yet</div>
+            )}
+            {filteredTreeItems.map(({ convo: c, children }) => (
+              <div key={c.convo_id}>
+                <ConvoCard
+                  convo={c}
+                  selected={c.convo_id === selectedID}
+                  onClick={() => { setIsNewConvo(false); setSelectedID(c.convo_id === selectedID ? null : c.convo_id) }}
+                  onCancel={handleCancelConvo}
+                  cancelling={cancellingID === c.convo_id}
+                />
+                {children.length > 0 && (
+                  <div style={s.convoChildren}>
+                    {children.map((child) => (
+                      <ConvoCard
+                        key={child.convo_id}
+                        convo={child}
+                        selected={child.convo_id === selectedID}
+                        onClick={() => { setIsNewConvo(false); setSelectedID(child.convo_id === selectedID ? null : child.convo_id) }}
+                        onCancel={handleCancelConvo}
+                        cancelling={cancellingID === child.convo_id}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {(oldestAsOf || convos.length > 0) && (
+            <div style={s.loadMoreContainer}>
+              <button style={s.btn} onClick={() => fetchConvos('more')} disabled={isFetchingMore || !oldestAsOf}>
+                {isFetchingMore ? 'Loading…' : oldestAsOf ? 'Load more' : 'No more'}
               </button>
             </div>
           )}
