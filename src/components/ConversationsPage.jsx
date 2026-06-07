@@ -681,6 +681,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
+  const splitterRef = useRef(null);
   const wasActiveRef = useRef(false)
   const wasIdleRef = useRef(false)
   const wasHistoryIdleRef = useRef(false)
@@ -979,11 +980,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     document.addEventListener('touchstart', handleActivity);
 
     return () => {
-      clearTimeout(idleTimerRef.current)
-      document.removeEventListener('mousemove', handleActivity)
+      clearTimeout(idleTimerRef.current);
+      document.removeEventListener('mousemove', handleActivity);
       document.removeEventListener('keydown', handleActivity);
       document.removeEventListener('touchstart', handleActivity);
-    });
+    };
   }, [isPaused])
 
   return (
