@@ -160,6 +160,24 @@ const s = {
     whiteSpace: 'pre-wrap',
     lineHeight: 1.6,
   },
+  thoughtsBlock: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    whiteSpace: 'pre-wrap',
+    lineHeight: 1.5,
+    borderLeft: '2px solid #2d3148',
+    paddingLeft: 8,
+    marginBottom: 8,
+  },
+  thoughtsLabel: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
   toolCallID: { fontSize: 10, color: '#475569', marginTop: 2 },
   msgTokenFooter: {
     display: 'flex',
@@ -433,7 +451,7 @@ function CollapsiblePre({ text, bg }) {
   )
 }
 
-const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode }) {
+const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode, bg }) {
   const lines = text.split('\n').length
   const collapsible = lines > COLLAPSE_LINE_THRESHOLD
   const [expanded, setExpanded] = useState(false)
@@ -450,7 +468,7 @@ const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode }
         {collapsed && (
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0, height: 24,
-            background: 'linear-gradient(transparent, #0d1017)',
+            background: `linear-gradient(transparent, ${bg || '#0d1017'})`,
             pointerEvents: 'none',
           }} />
         )}
@@ -515,14 +533,17 @@ const ToolResultCard = memo(function ToolResultCard({ result, index }) {
   )
 })
 
-const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true }) {
+const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, showThoughts = false }) {
   const role = msg.Role || msg.role || 'unknown'
   const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
   const [viewMode, setViewMode] = useState(defaultMode)
   const content = msg.content || ''
+  const thoughts = msg.thoughts || ''
+  const [thoughtsViewMode, setThoughtsViewMode] = useState('markdown')
   const toolCalls = msg.ToolCalls || []
   const toolResults = msg.ToolResult || []
+  const bubbleBg = role === 'user' ? '#162030' : role === 'agent' ? '#12201a' : '#191d2b'
   return (
     <div style={s.msgRow(role)}>
       <div style={s.msgBubble(role)}>
@@ -538,6 +559,20 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true }
             </select>
           )}
         </div>
+        {showThoughts && thoughts && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+              <div style={s.thoughtsLabel}>Thoughts</div>
+              <select style={s.viewSelect} value={thoughtsViewMode} onChange={(e) => setThoughtsViewMode(e.target.value)}>
+                <option value="markdown">Markdown</option>
+                <option value="text">Text</option>
+              </select>
+            </div>
+            <div style={s.thoughtsBlock}>
+              <CollapsibleMarkdown text={thoughts} viewMode={thoughtsViewMode} bg={bubbleBg} />
+            </div>
+          </div>
+        )}
         {showTools && toolCalls.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
             {toolCalls.map((call, i) => <ToolCallCard key={i} call={call} />)}
@@ -651,6 +686,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [agents, setAgents] = useState([])
   const [selectedAgent, setSelectedAgent] = useState('')
   const [showTools, setShowTools] = useState(false)
+  const [showThoughts, setShowThoughts] = useState(false)
   const [showSubAgents, setShowSubAgents] = useState(false)
   const [showArchivedGroups, setShowArchivedGroups] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
@@ -1055,6 +1091,10 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
               <span>Show tools</span>
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+              <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+              <span>Show thoughts</span>
+            </label>
             {isSelectedConvoActive && (
               <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
                 {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
@@ -1082,8 +1122,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           )}
           {history.map((msg, i) => {
             const role = msg.Role || msg.role || ''
-            if (!showTools && (role === 'tool' || role === 'tool_result')) return null
-            return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} />
+            const hasToolCalls = (msg.ToolCalls || []).length > 0
+            if (!showTools && (role === 'tool' || role === 'tool_result' || (role === 'agent' && hasToolCalls))) return null
+            return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} showThoughts={showThoughts} />
           })}
           <div ref={historyEndRef} />
         </div>
