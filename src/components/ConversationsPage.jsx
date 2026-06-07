@@ -346,7 +346,7 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
     startHeight.current = historyHeight
     document.addEventListener('mousemove', handleSplitterMouseMove)
     document.addEventListener('mouseup', handleSplitterMouseUp)
-    document.addEventListener('mouseleave', handleSplitterMouseUp');
+    document.addEventListener('mouseleave', handleSplitterMouseUp);
   }
 
   const handleSplitterMouseMove = (e) => {
