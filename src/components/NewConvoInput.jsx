@@ -12,37 +12,33 @@ const inputAreaStyle = {
 
 const selectStyle = {
   width: 150,
-  minHeight: 80,
   background: '#0f1117',
   border: '1px solid #2d3148',
   borderRadius: 8,
   color: '#e2e8f0',
-  fontSize: 14,
-  padding: '10px 12px',
+  fontSize: 13,
+  padding: '8px 12px',
   outline: 'none',
   flexShrink: 0,
-  boxSizing: 'border-box',
 }
 
 const inputStyle = {
   flex: 1,
-  minHeight: 80,
   background: '#0f1117',
   border: '1px solid #2d3148',
   borderRadius: 8,
   color: '#e2e8f0',
-  fontSize: 14,
-  padding: '10px 12px',
-  resize: 'vertical',
+  fontSize: 13,
+  padding: '8px 12px',
+  resize: 'none',
   outline: 'none',
   lineHeight: 1.5,
   fontFamily: 'inherit',
-  width: '100%',
-  boxSizing: 'border-box',
+  minHeight: 38,
+  maxHeight: 140,
 }
 
 const btnStyle = {
-  alignSelf: 'flex-end',
   padding: '8px 16px',
   borderRadius: 8,
   border: 'none',
@@ -52,6 +48,7 @@ const btnStyle = {
   background: '#3b82f6',
   color: '#fff',
   flexShrink: 0,
+  alignSelf: 'flex-end',
 }
 
 const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAgentChange, onSend, isSending }) {
@@ -84,6 +81,7 @@ const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAge
       </select>
       <textarea
         style={inputStyle}
+        rows={1}
         placeholder="Type your first message…"
         value={text}
         onChange={(e) => setText(e.target.value)}

@@ -338,6 +338,30 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
     }
   }
 
+
+  const handleSplitterMouseDown = (e) => {
+    e.preventDefault()
+    isResizing.current = true
+    startY.current = e.clientY
+    startHeight.current = historyHeight
+    document.addEventListener('mousemove', handleSplitterMouseMove)
+    document.addEventListener('mouseup', handleSplitterMouseUp)
+    document.addEventListener('mouseleave', handleSplitterMouseUp'
+  }
+
+  const handleSplitterMouseMove = (e) => {
+    if (!isResizing.current) return
+    const dy = e.clientY - startY.current
+    const newHeight = Math.max(100, Math.min(startHeight.current + dy, 800)) // clamp between 100 and 800px
+    setHistoryHeight(newHeight)
+  }
+
+  const handleSplitterMouseUp = () => {
+    isResizing.current = false
+    document.removeEventListener('mousemove', handleSplitterMouseMove)
+    document.removeEventListener('mouseup', handleSplitterMouseUp')
+    document.removeEventListener('mouseleave', handleSplitterMouseUp'
+  }
   return (
     <div style={s.convoCard(selected)} onClick={onClick}>
       <div ref={idRef} style={{ ...s.convoID, position: 'relative' }} title={convo.convo_id}>
@@ -1047,7 +1071,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             {isNewConvo
               ? 'New Conversation'
               : selectedConvo
-                ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                ? <>{'History — '}<span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
                 : 'History'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1062,13 +1086,57 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             )}
           </div>
         </div>
-        <div style={s.historyScroll}>
-          {isNewConvo && (
-            <div style={s.empty}>Select an agent and type your first message below</div>
-          )}
-          {!isNewConvo && !selectedID && (
-            <div style={s.empty}>Select a conversation to view its history</div>
-          )}
+        <div style={s.splitterContainer}>
+          <div ref={splitterRef} style={{ ...s.historyArea, height: `${historyHeight}px` }}>
+            {isNewConvo ? (
+              <div style={s.empty}>Select an agent and type your first message below</div>
+            ) : (!selectedID ? (
+              <div style={s.empty}>Select a conversation to view its history</div>
+            ) : (historyLoading ? (
+              <div style={s.empty}>Loading…</div>
+            ) : (historyError ? (
+              <div style={s.err}>{historyError}</div>
+            ) : (history.length === 0 ? (
+              <div style={s.empty}>
+                {selectedConvo && isSelectedConvoActive ? 'Preparing the system prompt…' : 'No messages in history'}
+              </div>
+            ) : (
+              <>
+                {history.map((msg, i) => (
+                  <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} />
+                ))}
+                <div ref={historyEndRef} />
+              </>
+            )))}
+          </div>
+          <div
+            style={s.splitterBar}
+            onMouseDown={handleSplitterMouseDown}
+          />
+          <div style={s.inputAreaContainer}>
+            {isNewConvo ? (
+              <div style={s.turnInputArea}>
+                <NewConvoInput
+                  agents={agents}
+                  selectedAgent={selectedAgent}
+                  onAgentChange={setSelectedAgent}
+                  onSend={handleSendNewConvo}
+                  isSending={isSendingTurn}
+                />
+              </div>
+            ) : (!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive ? (
+              <div style={s.turnInputArea}>
+                <TurnInputArea
+                  onSubmit={handleSendTurn}
+                  isSending={isSendingTurn}
+                  placeholder="Start a new turn…"
+                  buttonLabel="Send"
+                />
+              </div>
+            ) : null)}
+          </div>
+        </div>
+      </div>          )}
           {!isNewConvo && selectedID && historyLoading && (
             <div style={s.empty}>Loading…</div>
           )}
