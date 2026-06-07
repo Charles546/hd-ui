@@ -13,13 +13,13 @@ const inputStyle = {
   border: '1px solid #2d3148',
   borderRadius: 8,
   color: '#e2e8f0',
-  fontSize: 13,
-  padding: '8px 12px',
+  fontSize: 14,
+  padding: '10px 12px',
   resize: 'none',
   outline: 'none',
   lineHeight: 1.5,
   fontFamily: 'inherit',
-  minHeight: 38,
+  minHeight: 50,
   maxHeight: 140,
 }
 
