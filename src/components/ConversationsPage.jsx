@@ -359,8 +359,8 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
   const handleSplitterMouseUp = () => {
     isResizing.current = false
     document.removeEventListener('mousemove', handleSplitterMouseMove)
-    document.removeEventListener('mouseup', handleSplitterMouseUp')
-    document.removeEventListener('mouseleave', handleSplitterMouseUp'
+    document.removeEventListener('mouseup', handleSplitterMouseUp)
+    document.removeEventListener('mouseleave', handleSplitterMouseUp)
   }
   return (
     <div style={s.convoCard(selected)} onClick={onClick}>
