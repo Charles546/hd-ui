@@ -346,7 +346,7 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
     startHeight.current = historyHeight
     document.addEventListener('mousemove', handleSplitterMouseMove)
     document.addEventListener('mouseup', handleSplitterMouseUp)
-    document.addEventListener('mouseleave', handleSplitterMouseUp'
+    document.addEventListener('mouseleave', handleSplitterMouseUp');
   }
 
   const handleSplitterMouseMove = (e) => {
@@ -974,16 +974,16 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
 
     resetIdleTimer()
 
-    document.addEventListener('mousemove', handleActivity)
-    document.addEventListener('keydown', handleActivity)
-    document.addEventListener('touchstart', handleActivity)
+    document.addEventListener('mousemove', handleActivity);
+    document.addEventListener('keydown', handleActivity);
+    document.addEventListener('touchstart', handleActivity);
 
     return () => {
       clearTimeout(idleTimerRef.current)
       document.removeEventListener('mousemove', handleActivity)
-      document.removeEventListener('keydown', handleActivity)
-      document.removeEventListener('touchstart', handleActivity)
-    }
+      document.removeEventListener('keydown', handleActivity);
+      document.removeEventListener('touchstart', handleActivity);
+    });
   }, [isPaused])
 
   return (
