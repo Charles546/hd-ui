@@ -631,7 +631,12 @@ function normalizeConvos(data) {
       if (/^\d{10}$/.test(t)) { markers.push(t); return }
       if (t.startsWith('{')) {
         try { convos.push(JSON.parse(t)) } catch { /* skip */ }
+        return
       }
+      // Stream names like "convo_stream_2026060716" — extract the 10-digit
+      // suffix as a pagination marker but don't treat them as conversations.
+      const suffixMatch = t.match(/(\d{10})$/)
+      if (suffixMatch) markers.push(suffixMatch[1])
       return
     }
     if (typeof item === 'object' && !Array.isArray(item)) {
@@ -1103,7 +1108,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               </div>
             ))}
           </div>
-          {(oldestAsOf || convos.length > 0) && (
+          {!loading && (
             <div style={s.loadMoreContainer}>
               <button style={s.btn} onClick={() => fetchConvos('more')} disabled={isFetchingMore || !oldestAsOf}>
                 {isFetchingMore ? 'Loading…' : oldestAsOf ? 'Load more' : 'No more'}
