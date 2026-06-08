@@ -36,7 +36,7 @@ const btnStyle = {
   alignSelf: 'flex-end',
 }
 
-const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel }) {
+const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, inputHeight }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
@@ -56,7 +56,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   return (
     <div style={areaStyle}>
       <textarea
-        style={inputStyle}
+        style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
         rows={1}
         placeholder={placeholder || 'Type a message…'}
         value={text}

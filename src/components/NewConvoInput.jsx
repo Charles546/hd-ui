@@ -50,7 +50,7 @@ const selectStyle = {
   flexShrink: 0,
 }
 
-const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAgentChange, onSend, isSending }) {
+const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAgentChange, onSend, isSending, inputHeight }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
@@ -79,7 +79,7 @@ const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAge
         {agents.map((a) => <option key={a} value={a}>{a}</option>)}
       </select>
       <textarea
-        style={inputStyle}
+        style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
         rows={1}
         placeholder="Type your first message…"
         value={text}

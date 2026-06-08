@@ -10,6 +10,9 @@ const POLL_INTERVAL_MS = 10000
 const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const INITIAL_LOOK_BACK = 12
 const POLL_LOOK_BACK = 2
+const MIN_INPUT_HEIGHT = 80
+const MAX_INPUT_HEIGHT = 500
+const DEFAULT_INPUT_HEIGHT = 160
 
 const STATUS_COLOR = {
   active:    '#38bdf8',
@@ -262,6 +265,19 @@ const s = {
     background: '#11141c',
     flexShrink: 0,
   },
+  divider: (active) => ({
+    height: 6,
+    cursor: 'ns-resize',
+    background: active ? '#2d3758' : '#141824',
+    borderTop: '1px solid #2d3148',
+    borderBottom: '1px solid #2d3148',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    userSelect: 'none',
+    transition: 'background 0.1s',
+  }),
 }
 
 function fmtTime(ts) {
@@ -690,6 +706,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [showSubAgents, setShowSubAgents] = useState(false)
   const [showArchivedGroups, setShowArchivedGroups] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
+  const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
+  const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -847,6 +865,25 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setSelectedID(null)
     setHistory([])
   }, [])
+
+  const handleDividerMouseDown = useCallback((e) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = inputAreaHeight
+    setIsDraggingDivider(true)
+    const onMouseMove = (ev) => {
+      const delta = startY - ev.clientY
+      const newHeight = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, startHeight + delta))
+      setInputAreaHeight(newHeight)
+    }
+    const onMouseUp = () => {
+      setIsDraggingDivider(false)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [inputAreaHeight])
 
   // fetch agent list once on mount
   useEffect(() => {
@@ -1128,24 +1165,34 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           })}
           <div ref={historyEndRef} />
         </div>
+        {(isNewConvo || (!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive)) && (
+          <div
+            onMouseDown={handleDividerMouseDown}
+            style={s.divider(isDraggingDivider)}
+          >
+            <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
+          </div>
+        )}
         {isNewConvo && (
-          <div style={s.turnInputArea}>
+          <div style={{ height: inputAreaHeight, flexShrink: 0, overflow: 'hidden' }}>
             <NewConvoInput
               agents={agents}
               selectedAgent={selectedAgent}
               onAgentChange={setSelectedAgent}
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
+              inputHeight={inputAreaHeight - 20}
             />
           </div>
         )}
         {!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
-          <div style={s.turnInputArea}>
+          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}
               placeholder="Start a new turn…"
               buttonLabel="Send"
+              inputHeight={inputAreaHeight - 20}
             />
           </div>
         )}
