@@ -6,6 +6,18 @@ const inputAreaStyle = {
   background: '#11141c',
   flexShrink: 0,
   display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+}
+
+const topRowStyle = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'center',
+}
+
+const inputRowStyle = {
+  display: 'flex',
   gap: 8,
   alignItems: 'flex-end',
 }
@@ -69,31 +81,35 @@ const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAge
 
   return (
     <div style={inputAreaStyle}>
-      <select
-        style={selectStyle}
-        value={selectedAgent}
-        onChange={(e) => onAgentChange(e.target.value)}
-        disabled={isSending}
-      >
-        {agents.length === 0 && <option value="">No agents</option>}
-        {agents.map((a) => <option key={a} value={a}>{a}</option>)}
-      </select>
-      <textarea
-        style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
-        rows={1}
-        placeholder="Type your first message…"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={isSending}
-      />
-      <button
-        style={{ ...btnStyle, opacity: isSending || !text.trim() || !selectedAgent ? 0.5 : 1 }}
-        onClick={handleSubmit}
-        disabled={isSending || !text.trim() || !selectedAgent}
-      >
-        {isSending ? '…' : 'Start'}
-      </button>
+      <div style={topRowStyle}>
+        <select
+          style={selectStyle}
+          value={selectedAgent}
+          onChange={(e) => onAgentChange(e.target.value)}
+          disabled={isSending}
+        >
+          {agents.length === 0 && <option value="">No agents</option>}
+          {agents.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      <div style={inputRowStyle}>
+        <textarea
+          style={inputHeight ? { ...inputStyle, height: inputHeight - 46, maxHeight: inputHeight - 46, overflowY: 'auto' } : inputStyle}
+          rows={1}
+          placeholder="Type your first message…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isSending}
+        />
+        <button
+          style={{ ...btnStyle, opacity: isSending || !text.trim() || !selectedAgent ? 0.5 : 1 }}
+          onClick={handleSubmit}
+          disabled={isSending || !text.trim() || !selectedAgent}
+        >
+          {isSending ? '…' : 'Start'}
+        </button>
+      </div>
     </div>
   )
 })
