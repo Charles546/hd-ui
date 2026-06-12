@@ -234,6 +234,18 @@ const s = {
     textAlign: 'center',
     marginTop: 4,
   },
+  subAgentNavLink: {
+    display: 'inline-block',
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#7c3aed',
+    textDecoration: 'none',
+    cursor: 'pointer',
+    padding: '2px 0',
+    borderBottom: '1px solid transparent',
+    transition: 'border-color 0.15s, color 0.15s',
+  },
 
   cancelBtn: {
     fontSize: 10,
@@ -500,10 +512,12 @@ const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode, 
   )
 })
 
-const ToolCallCard = memo(function ToolCallCard({ call }) {
+const ToolCallCard = memo(function ToolCallCard({ call, onNavigateToSubAgent }) {
   const isAgent = call.FuncName?.startsWith('ag__')
   const displayName = isAgent ? call.FuncName.slice(4) : call.FuncName
   const input = isAgent ? (call.Params?.input || '') : null
+  const hasConvoID = !!(call.ConvoID || call.convo_id)
+  const convoID = call.ConvoID || call.convo_id || ''
   const [viewMode, setViewMode] = useState('markdown')
   const hasParams = !isAgent && call.Params && Object.keys(call.Params).length > 0
   return (
@@ -521,6 +535,16 @@ const ToolCallCard = memo(function ToolCallCard({ call }) {
         ? (input && <CollapsibleMarkdown text={input} viewMode={viewMode} />)
         : (hasParams && <CollapsiblePre text={JSON.stringify(call.Params, null, 2)} />)
       }
+      {hasConvoID && onNavigateToSubAgent && (
+        <div
+          style={s.subAgentNavLink}
+          onClick={(e) => { e.stopPropagation(); onNavigateToSubAgent(convoID) }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderBottomColor = '#7c3aed'; e.currentTarget.style.color = '#a78bfa' }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderBottomColor = 'transparent'; e.currentTarget.style.color = '#7c3aed' }}
+        >
+          ⟫ View Sub-Agent Conversation
+        </div>
+      )}
     </div>
   )
 })
@@ -551,7 +575,7 @@ const ToolResultCard = memo(function ToolResultCard({ result, index }) {
   )
 })
 
-const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, showThoughts = false }) {
+const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, showThoughts = false, onNavigateToSubAgent }) {
   const role = msg.Role || msg.role || 'unknown'
   const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
@@ -593,7 +617,7 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, 
         )}
         {showTools && toolCalls.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: content ? 8 : 0 }}>
-            {toolCalls.map((call, i) => <ToolCallCard key={i} call={call} />)}
+            {toolCalls.map((call, i) => <ToolCallCard key={i} call={call} onNavigateToSubAgent={onNavigateToSubAgent} />)}
           </div>
         )}
         {showTools && toolResults.length > 0 && (
@@ -871,6 +895,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsNewConvo(true)
     setSelectedID(null)
     setHistory([])
+  }, [])
+
+  const handleNavigateToSubAgent = useCallback((convoId) => {
+    setSelectedID(convoId)
+    setIsNewConvo(false)
   }, [])
 
   const handleDividerMouseDown = useCallback((e) => {
@@ -1207,7 +1236,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             const role = msg.Role || msg.role || ''
             const hasToolCalls = (msg.ToolCalls || []).length > 0
             if (!showTools && (role === 'tool' || role === 'tool_result' || (role === 'agent' && hasToolCalls))) return null
-            return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} showThoughts={showThoughts} />
+            return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} showThoughts={showThoughts} onNavigateToSubAgent={handleNavigateToSubAgent} />
           })}
           <div ref={historyEndRef} />
         </div>
