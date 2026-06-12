@@ -4,6 +4,7 @@ import GitHubCallback from './auth/GitHubCallback'
 import SAMLCallback from './auth/SAMLCallback'
 import SAMLMetadata from './auth/SAMLMetadata'
 import ConversationsPage from './components/ConversationsPage'
+import ConvoHistoryPage from './components/ConvoHistoryPage'
 import GitHubSecretsPage from './components/GitHubSecretsPage'
 import GitHubWorkflowList from './components/GitHubWorkflowList'
 import LogStreamPage from './components/LogStreamPage'
@@ -95,6 +96,12 @@ function parseRouteLocation() {
     return { view: 'conversations', convoId, ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
   }
 
+  if (pathname.startsWith('/focus/')) {
+    const raw = pathname.replace(/^\/focus\/?/, '')
+    const convoId = raw ? decodeURIComponent(raw) : ''
+    return { view: 'focus', convoId, ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
+  }
+
   return { view: 'events', convoId: '', ghSlug: '', provider: '', podID: '', providerData: null, streamToken: '' }
 }
 
@@ -123,6 +130,15 @@ function buildConversationsPath(convoId) {
   }
 
   return `/conversations/${encodeURIComponent(normalized)}`
+}
+
+function buildFocusPath(convoId) {
+  const normalized = String(convoId || '').trim()
+  if (!normalized) {
+    return '/focus'
+  }
+
+  return `/focus/${encodeURIComponent(normalized)}`
 }
 
 function buildLogStreamPath(provider, podID, providerData, ghSlug, streamToken) {
@@ -211,6 +227,9 @@ export default function App() {
     if (view === 'conversations') {
       targetPath = buildConversationsPath(convoId)
     }
+    if (view === 'focus') {
+      targetPath = buildFocusPath(convoId)
+    }
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {
@@ -264,17 +283,30 @@ export default function App() {
 
   const showGitHubEventsTab = isGitHubSession
 
+  const handleNavigateToConvo = (nextConvoId) => {
+    setConvoId(nextConvoId)
+    window.history.pushState({}, '', buildFocusPath(nextConvoId))
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  const handleFocusMode = (nextConvoId) => {
+    setConvoId(nextConvoId)
+    setView('focus')
+  }
+
   return (
     <>
-      <NavBar
-        view={view}
-        onViewChange={handleViewChange}
-        showGlobalEventsTab={showGlobalEventsTab}
-        showGitHubEventsTab={showGitHubEventsTab}
-        showGitHubSecretsTab={showGitHubEventsTab}
-        showConversationsTab={showGlobalEventsTab}
-      />
-      <main style={view === 'conversations' ? s.mainWide : s.main}>
+      {view !== 'focus' && (
+        <NavBar
+          view={view}
+          onViewChange={handleViewChange}
+          showGlobalEventsTab={showGlobalEventsTab}
+          showGitHubEventsTab={showGitHubEventsTab}
+          showGitHubSecretsTab={showGitHubEventsTab}
+          showConversationsTab={showGlobalEventsTab}
+        />
+      )}
+      <main style={view === 'conversations' || view === 'focus' ? s.mainWide : s.main}>
         {isGitHubSession && view === 'github-events' && (
           <GitHubWorkflowList
             ghSlug={ghSlug}
@@ -298,8 +330,20 @@ export default function App() {
             onBackToEvents={openGitHubEvents}
           />
         )}
-        {view === 'conversations' && <ConversationsPage initialConvoId={convoId} onConvoIdChange={setConvoId} />}
-        {view !== 'conversations' && (!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
+        {view === 'conversations' && (
+          <ConversationsPage
+            initialConvoId={convoId}
+            onConvoIdChange={setConvoId}
+            onFocusMode={handleFocusMode}
+          />
+        )}
+        {view === 'focus' && (
+          <ConvoHistoryPage
+            convoId={convoId}
+            onNavigateToConvo={handleNavigateToConvo}
+          />
+        )}
+        {view !== 'conversations' && view !== 'focus' && (!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (
           view !== 'log-stream' && <WorkflowList onForbidden={handleEventsForbidden} onOpenLogStream={openLogStream} />
         )}
       </main>
