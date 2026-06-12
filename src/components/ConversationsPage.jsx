@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
@@ -163,6 +164,7 @@ const s = {
     whiteSpace: 'pre-wrap',
     lineHeight: 1.6,
   },
+
   thoughtsBlock: {
     fontSize: 12,
     color: '#64748b',
@@ -478,7 +480,7 @@ const CollapsibleMarkdown = memo(function CollapsibleMarkdown({ text, viewMode, 
       <div style={{ position: 'relative' }}>
         <div style={collapsed ? { maxHeight: maxH, overflow: 'hidden' } : {}}>
           {viewMode === 'markdown'
-            ? <div className="md-content"><ReactMarkdown>{text}</ReactMarkdown></div>
+            ? <div className="md-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
             : <div style={s.msgContent}>{text}</div>}
         </div>
         {collapsed && (
@@ -600,7 +602,7 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, 
           </div>
         )}
         {content && (viewMode === 'markdown'
-          ? <div className="md-content"><ReactMarkdown>{content}</ReactMarkdown></div>
+          ? <div className="md-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown></div>
           : <div style={s.msgContent}>{content}</div>
         )}
         {msg.tool_call_id && <div style={s.toolCallID}>tool_call_id: {msg.tool_call_id}</div>}
@@ -1042,6 +1044,45 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
 
   return (
     <div style={s.page}>
+      <style>{`
+        .md-content table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 8px 0;
+          font-size: 13px;
+          display: block;
+          overflow-x: auto;
+        }
+        .md-content thead {
+          background: #1a1f30;
+        }
+        .md-content th {
+          border: 1px solid #2d3148;
+          padding: 8px 12px;
+          text-align: left;
+          font-weight: 700;
+          color: #e2e8f0;
+          background: #1a1f30;
+        }
+        .md-content td {
+          border: 1px solid #2d3148;
+          padding: 6px 12px;
+          text-align: left;
+          color: #cbd5e1;
+        }
+        .md-content tr {
+          border-bottom: 1px solid #2d3148;
+        }
+        .md-content tr:nth-child(even) {
+          background: #111827;
+        }
+        .md-content tr:nth-child(odd) {
+          background: #0f131d;
+        }
+        .md-content tr:hover {
+          background: #1e2438;
+        }
+      `}</style>
       {/* Left column — conversation list */}
       <div style={s.leftCol}>
         <div style={s.colHeader}>
