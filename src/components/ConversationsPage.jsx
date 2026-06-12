@@ -580,8 +580,13 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, 
   const user = msg.User || msg.user || ''
   const defaultMode = (role === 'user' || role === 'agent') ? 'markdown' : 'text'
   const [viewMode, setViewMode] = useState(defaultMode)
-  const content = msg.content || ''
+  const rawContent = msg.content || ''
   const thoughts = msg.thoughts || ''
+
+  // Detect archived conversation marker in system messages
+  const archivedConvoMatch = rawContent.match(/<!-- archived_convo: ([^>]+) -->/)
+  const archivedConvoID = archivedConvoMatch ? archivedConvoMatch[1].trim() : null
+  const content = archivedConvoMatch ? rawContent.replace(/<!-- archived_convo: [^>]+ -->\n?/, '') : rawContent
   const [thoughtsViewMode, setThoughtsViewMode] = useState('markdown')
   const toolCalls = msg.ToolCalls || []
   const toolResults = msg.ToolResult || []
@@ -629,6 +634,21 @@ const MessageBubble = memo(function MessageBubble({ msg, idx, showTools = true, 
           ? <div className="md-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown></div>
           : <div style={s.msgContent}>{content}</div>
         )}
+        {archivedConvoID && onNavigateToSubAgent && (() => {
+          const genMatch = archivedConvoID.match(/_g(\d+)$/)
+          const genNum = genMatch ? genMatch[1] : null
+          const label = genNum ? `📎 View archived conversation (generation ${genNum})` : '📎 View archived conversation'
+          return (
+            <div
+              style={s.subAgentNavLink}
+              onClick={(e) => { e.stopPropagation(); onNavigateToSubAgent(archivedConvoID) }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderBottomColor = '#7c3aed'; e.currentTarget.style.color = '#a78bfa' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderBottomColor = 'transparent'; e.currentTarget.style.color = '#7c3aed' }}
+            >
+              {label}
+            </div>
+          )
+        })()}
         {msg.tool_call_id && <div style={s.toolCallID}>tool_call_id: {msg.tool_call_id}</div>}
         {(msg.input_tokens > 0 || msg.output_tokens > 0) && (
           <div style={s.msgTokenFooter}>
