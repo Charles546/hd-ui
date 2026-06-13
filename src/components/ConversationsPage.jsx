@@ -405,7 +405,7 @@ function buildConvoTree(convos) {
   return roots.map((c) => ({ convo: c, children: childrenMap.get(c.convo_id) || [] }))
 }
 
-export default function ConversationsPage({ initialConvoId = '', onConvoIdChange = () => {} }) {
+export default function ConversationsPage({ initialConvoId = '', onConvoIdChange = () => {}, onFocusMode = () => {} }) {
   const { creds } = useAuth()
   const [convos, setConvos] = useState([])
   const [selectedID, setSelectedID] = useState(initialConvoId || null)
@@ -864,6 +864,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             {isSelectedConvoActive && (
               <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
                 {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+            )}
+            {selectedID && (
+              <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
+                ⧉ Focus mode
               </button>
             )}
           </div>
