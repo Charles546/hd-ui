@@ -14,6 +14,18 @@ import {
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
 const DEFAULT_INPUT_HEIGHT = 160
+const POLL_INTERVAL_MS = 10000
+const IDLE_TIMEOUT_MS = 120000 // 2 minutes
+const INITIAL_LOOK_BACK = 12
+const POLL_LOOK_BACK = 2
+
+const STATUS_COLOR = {
+  active:    '#38bdf8',
+  complete:  '#4ade80',
+  failed:    '#f87171',
+  cancelled: '#f97316',
+}
+
 const s = {
   page: {
     display: 'flex',
