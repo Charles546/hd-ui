@@ -11,6 +11,9 @@ import {
   markdownCSS,
 } from './MessageBubble'
 
+const MIN_INPUT_HEIGHT = 80
+const MAX_INPUT_HEIGHT = 500
+const DEFAULT_INPUT_HEIGHT = 160
 const s = {
   page: {
     display: 'flex',
