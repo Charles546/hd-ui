@@ -70,18 +70,38 @@ const s = {
 
 function getConvoStatus(history) {
   if (!history || history.length === 0) return 'unknown'
-  // Check if the last message indicates an active conversation
+
+  // Scan all messages for explicit terminal status.
+  // Some messages in the history may carry a .status field indicating
+  // the conversation state at the time that message was recorded.
+  for (let i = history.length - 1; i >= 0; i--) {
+    const st = history[i]?.status
+    if (st === 'complete' || st === 'failed' || st === 'cancelled') return st
+  }
+
   const lastMsg = history[history.length - 1]
   const lastRole = lastMsg?.Role || lastMsg?.role || ''
-  // If the last message is from the agent or system and has no terminal indicator,
-  // the conversation is likely still active.
-  // A conversation is considered complete when it has a system message indicating
-  // completion or when the last message has explicit status.
-  if (lastMsg?.status === 'complete' || lastMsg?.status === 'failed' || lastMsg?.status === 'cancelled') {
-    return lastMsg.status
+
+  // A system message as the last entry signals the conversation has been
+  // summarised / archived / completed.
+  if (lastRole === 'system') return 'complete'
+
+  // If the last message is from the agent and it has no pending/unanswered
+  // tool calls (i.e. ToolCalls without matching ToolResult), the agent has
+  // finished its turn and the conversation is complete.
+  if (lastRole === 'agent') {
+    const toolCalls = lastMsg?.ToolCalls || []
+    const toolResults = lastMsg?.ToolResult || []
+    // If there are tool calls but fewer results than calls, the agent is
+    // still waiting — conversation is active.
+    if (toolCalls.length > 0 && toolResults.length < toolCalls.length) return 'active'
+    // Agent produced a final response (no outstanding tool calls).
+    return 'complete'
   }
-  // Default: if we have messages and no terminal state, assume active
-  return lastRole === 'system' ? 'complete' : 'active'
+
+  // For any other role (user, tool, tool_result, etc.) the conversation
+  // is still in progress — the agent hasn't had its final say yet.
+  return 'active'
 }
 
 export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
@@ -270,13 +290,13 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: statusColor + '22', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.5, border: `1px solid ${statusColor}44` }}>
             {convoStatus}
           </span>
-          {isPaused ? (
+          {isActive && !isPaused && !isIdle ? (
+            <span style={s.active}>polling</span>
+          ) : isPaused ? (
             <span style={s.paused}>paused</span>
           ) : isIdle ? (
             <span style={s.paused}>idle</span>
-          ) : (
-            <span style={s.active}>polling</span>
-          )}
+          ) : null}
         </div>
       </div>
 
