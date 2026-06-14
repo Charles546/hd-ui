@@ -60,10 +60,11 @@ export default function NavBar({
   showGitHubEventsTab = false,
   showGitHubSecretsTab = false,
   showConversationsTab = false,
+  showTabs = true,
 }) {
   const { subject, profileName, role, logout } = useAuth()
   const displayName = profileName || subject
-  const canSwitchViews = typeof onViewChange === 'function' && (showGlobalEventsTab || showGitHubEventsTab || showGitHubSecretsTab || showConversationsTab)
+  const canSwitchViews = showTabs && typeof onViewChange === 'function' && (showGlobalEventsTab || showGitHubEventsTab || showGitHubSecretsTab || showConversationsTab)
 
   return (
     <nav style={s.nav}>

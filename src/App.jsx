@@ -296,16 +296,15 @@ export default function App() {
 
   return (
     <>
-      {view !== 'focus' && (
-        <NavBar
-          view={view}
-          onViewChange={handleViewChange}
-          showGlobalEventsTab={showGlobalEventsTab}
-          showGitHubEventsTab={showGitHubEventsTab}
-          showGitHubSecretsTab={showGitHubEventsTab}
-          showConversationsTab={showGlobalEventsTab}
-        />
-      )}
+      <NavBar
+        view={view}
+        onViewChange={handleViewChange}
+        showGlobalEventsTab={showGlobalEventsTab}
+        showGitHubEventsTab={showGitHubEventsTab}
+        showGitHubSecretsTab={showGitHubEventsTab}
+        showConversationsTab={showGlobalEventsTab}
+        showTabs={view !== 'focus'}
+      />
       <main style={view === 'conversations' || view === 'focus' ? s.mainWide : s.main}>
         {isGitHubSession && view === 'github-events' && (
           <GitHubWorkflowList
