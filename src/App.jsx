@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import GitHubCallback from './auth/GitHubCallback'
 import SAMLCallback from './auth/SAMLCallback'
@@ -169,7 +169,6 @@ export default function App() {
   const [logProviderData, setLogProviderData] = useState(() => parseRouteLocation().providerData || null)
   const [logStreamToken, setLogStreamToken] = useState(() => parseRouteLocation().streamToken || '')
   const [showGlobalEventsTab, setShowGlobalEventsTab] = useState(true)
-  const prevViewRef = useRef(view)
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -234,17 +233,8 @@ export default function App() {
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {
-      const isConvoFocusTransition =
-        (prevViewRef.current === 'conversations' && view === 'focus') ||
-        (prevViewRef.current === 'focus' && view === 'conversations')
-      if (isConvoFocusTransition) {
-        window.history.pushState({}, '', targetPath)
-      } else {
-        window.history.replaceState({}, '', targetPath)
-      }
+      window.history.pushState({}, '', targetPath)
     }
-
-    prevViewRef.current = view
   }, [view, convoId, ghSlug, isGitHubSession, logProvider, logPodID, logProviderData, logStreamToken])
 
   if (window.location.pathname === '/auth/github/callback') {
