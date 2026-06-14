@@ -233,7 +233,7 @@ export default function App() {
 
     const current = window.location.pathname + window.location.search
     if (current !== targetPath) {
-      window.history.replaceState({}, '', targetPath)
+      window.history.pushState({}, '', targetPath)
     }
   }, [view, convoId, ghSlug, isGitHubSession, logProvider, logPodID, logProviderData, logStreamToken])
 
