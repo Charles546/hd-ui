@@ -86,16 +86,21 @@ function getConvoStatus(history) {
   // summarised / archived / completed.
   if (lastRole === 'system') return 'complete'
 
-  // If the last message is from the agent and it has no pending/unanswered
-  // tool calls (i.e. ToolCalls without matching ToolResult), the agent has
-  // finished its turn and the conversation is complete.
+  // If the last message is from the agent, check its is_complete field
+  // (serialized by the server as the authoritative signal for session
+  // completeness) and tool call status to determine conversation state.
   if (lastRole === 'agent') {
+    // The server sets is_complete=false while the agent is still streaming
+    // its response. Treat explicitly false as active regardless of tool calls.
+    if (lastMsg?.is_complete === false) return 'active'
+
     const toolCalls = lastMsg?.ToolCalls || []
     const toolResults = lastMsg?.ToolResult || []
     // If there are tool calls but fewer results than calls, the agent is
-    // still waiting — conversation is active.
+    // still waiting for tool results — conversation is active.
     if (toolCalls.length > 0 && toolResults.length < toolCalls.length) return 'active'
-    // Agent produced a final response (no outstanding tool calls).
+    // Agent produced a final response (no outstanding tool calls, and
+    // is_complete is either true or absent/undefined).
     return 'complete'
   }
 

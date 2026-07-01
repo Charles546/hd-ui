@@ -36,6 +36,7 @@ function makeMessages(overrides = []) {
     ToolCalls: o.ToolCalls || [],
     ToolResult: o.ToolResult || [],
     status: o.status,
+    is_complete: o.is_complete,
   }))
 }
 
@@ -342,6 +343,78 @@ describe('ConvoHistoryPage', () => {
     await waitFor(() => {
       expect(screen.getByText('complete')).toBeInTheDocument()
       expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  // ---------- is_complete field tests ----------
+
+  it('agent message with is_complete: false returns active (still streaming)', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Thinking...', is_complete: false },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument()
+    })
+  })
+
+  it('agent message with is_complete: true and no tool calls returns complete', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Here is the answer.', is_complete: true },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('complete')).toBeInTheDocument()
+    })
+  })
+
+  it('agent message with is_complete: true and tool calls returns active', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Working...', is_complete: true, ToolCalls: [{ FuncName: 'search' }], ToolResult: [] },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument()
+    })
+  })
+
+  it('agent message with is_complete: false and tool calls returns active', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Still working...', is_complete: false, ToolCalls: [{ FuncName: 'search' }], ToolResult: [] },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument()
+    })
+  })
+
+  it('agent message with is_complete: true, tool calls and matching tool results returns complete', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Final answer.', is_complete: true, ToolCalls: [{ FuncName: 'search' }], ToolResult: [{ data: 'result' }] },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('complete')).toBeInTheDocument()
     })
   })
 })
