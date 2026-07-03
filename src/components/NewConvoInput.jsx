@@ -62,14 +62,32 @@ const selectStyle = {
   flexShrink: 0,
 }
 
-const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAgentChange, onSend, isSending, inputHeight }) {
+function parseEngineValue(value) {
+  if (!value) return { engine: '', driver: '' }
+  const idx = value.indexOf(':')
+  if (idx === -1) return { engine: value, driver: '' }
+  return { driver: value.substring(0, idx), engine: value.substring(idx + 1) }
+}
+
+const NewConvoInput = memo(function NewConvoInput({
+  agents,
+  selectedAgent,
+  onAgentChange,
+  engines,
+  selectedEngine,
+  onEngineChange,
+  onSend,
+  isSending,
+  inputHeight,
+}) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
     const trimmed = text.trim()
     if (!trimmed || !selectedAgent || isSending) return
     setText('')
-    onSend(selectedAgent, trimmed)
+    const { engine, driver } = parseEngineValue(selectedEngine)
+    onSend(selectedAgent, trimmed, engine, driver)
   }
 
   const handleKeyDown = (e) => {
@@ -90,6 +108,19 @@ const NewConvoInput = memo(function NewConvoInput({ agents, selectedAgent, onAge
         >
           {agents.length === 0 && <option value="">No agents</option>}
           {agents.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select
+          style={selectStyle}
+          value={selectedEngine}
+          onChange={(e) => onEngineChange(e.target.value)}
+          disabled={isSending}
+        >
+          <option value="">Default engine</option>
+          {engines.map((e) => (
+            <option key={`${e.driver}:${e.engine}`} value={`${e.driver}:${e.engine}`}>
+              {e.driver}:{e.engine}
+            </option>
+          ))}
         </select>
       </div>
       <div style={inputRowStyle}>

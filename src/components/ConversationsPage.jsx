@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents } from '../api'
+import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents, listEngines } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
 import NewConvoInput from './NewConvoInput'
@@ -424,6 +424,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [isNewConvo, setIsNewConvo] = useState(false)
   const [agents, setAgents] = useState([])
   const [selectedAgent, setSelectedAgent] = useState('')
+  const [engines, setEngines] = useState([])
+  const [selectedEngine, setSelectedEngine] = useState('')
   const [showTools, setShowTools] = useState(false)
   const [showThoughts, setShowThoughts] = useState(false)
   const [showSubAgents, setShowSubAgents] = useState(false)
@@ -564,11 +566,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     }
   }, [creds, selectedID, fetchConvos, fetchHistory])
 
-  const handleSendNewConvo = useCallback(async (agent, text) => {
+  const handleSendNewConvo = useCallback(async (agent, text, engine, driver) => {
     if (!text || !agent) return
     setIsSendingTurn(true)
     try {
-      const raw = await startNewConvo(creds, agent, text)
+      const raw = await startNewConvo(creds, agent, text, engine, driver)
       // Unwrap node envelope
       const result = (raw && !Array.isArray(raw) && typeof raw === 'object')
         ? (raw.convo_id ? raw : Object.values(raw).find((v) => v?.convo_id) ?? raw)
@@ -625,6 +627,17 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         if (!Array.isArray(names)) names = []
         setAgents(names)
         if (names.length > 0) setSelectedAgent(names[0])
+      })
+      .catch(() => {})
+    listEngines(creds)
+      .then((data) => {
+        let list = data
+        if (data && !Array.isArray(data) && typeof data === 'object') {
+          const vals = Object.values(data)
+          list = vals.find(Array.isArray) ?? []
+        }
+        if (!Array.isArray(list)) list = []
+        setEngines(list)
       })
       .catch(() => {})
   }, [creds])
@@ -913,6 +926,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               agents={agents}
               selectedAgent={selectedAgent}
               onAgentChange={setSelectedAgent}
+              engines={engines}
+              selectedEngine={selectedEngine}
+              onEngineChange={setSelectedEngine}
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
               inputHeight={inputAreaHeight - 20}
