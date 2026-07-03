@@ -552,11 +552,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     }
   }, [creds, fetchConvos])
 
-  const handleSendTurn = useCallback(async (text) => {
+  const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !selectedID) return
     setIsSendingTurn(true)
     try {
-      await startTurn(creds, selectedID, text)
+      await startTurn(creds, selectedID, text, engine, driver)
       fetchConvos('poll')
       fetchHistory(false)
     } catch (err) {
@@ -932,6 +932,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
               inputHeight={inputAreaHeight - 20}
+              engines={engines}
+              selectedEngine={selectedEngine}
+              onEngineChange={setSelectedEngine}
             />
           </div>
         )}
@@ -943,6 +946,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               placeholder="Start a new turn…"
               buttonLabel="Send"
               inputHeight={inputAreaHeight - 20}
+              engines={engines}
+              selectedEngine={selectedEngine}
+              onEngineChange={setSelectedEngine}
             />
           </div>
         )}

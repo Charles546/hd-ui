@@ -3,11 +3,13 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import ConvoHistoryPage from './ConvoHistoryPage'
 
 const mockGetConvoHistory = vi.fn()
+const mockListEngines = vi.fn()
 const mockStartTurn = vi.fn()
 
 vi.mock('../api', () => ({
   getConvoHistory: (...args) => mockGetConvoHistory(...args),
   startTurn: (...args) => mockStartTurn(...args),
+  listEngines: (...args) => mockListEngines(...args),
 }))
 
 vi.mock('../auth/AuthContext', () => ({
@@ -42,6 +44,8 @@ function makeMessages(overrides = []) {
 describe('ConvoHistoryPage', () => {
   beforeEach(() => {
     mockGetConvoHistory.mockReset()
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue([])
     mockStartTurn.mockReset()
   })
 

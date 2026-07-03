@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getConvoHistory, startTurn } from '../api'
+import { getConvoHistory, startTurn, listEngines } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
@@ -117,6 +117,8 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [convoStatus, setConvoStatus] = useState('unknown')
   const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
+  const [engines, setEngines] = useState([])
+  const [selectedEngine, setSelectedEngine] = useState("")
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -225,17 +227,33 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     }
   }, [isPaused])
 
+  // fetch engine list once on mount
+  useEffect(() => {
+    listEngines(creds)
+      .then((data) => {
+        let list = data
+        if (data && !Array.isArray(data) && typeof data === "object") {
+          const vals = Object.values(data)
+          list = vals.find(Array.isArray) ?? []
+        }
+        if (!Array.isArray(list)) list = []
+        setEngines(list)
+      })
+      .catch(() => {})
+  }, [creds])
+
+
   const handleNavigateToSubAgent = useCallback((subConvoId) => {
     if (onNavigateToConvo) {
       onNavigateToConvo(subConvoId)
     }
   }, [onNavigateToConvo])
 
-  const handleSendTurn = useCallback(async (text) => {
+  const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !convoId) return
     setIsSendingTurn(true)
     try {
-      await startTurn(creds, convoId, text)
+      await startTurn(creds, convoId, text, engine, driver)
       fetchHistory(false)
     } catch (err) {
       setHistoryError(err.message)
@@ -336,6 +354,9 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
               placeholder="Start a new turn…"
               buttonLabel="Send"
               inputHeight={inputAreaHeight - 20}
+              engines={engines}
+              selectedEngine={selectedEngine}
+              onEngineChange={setSelectedEngine}
             />
           </div>
         </>
