@@ -165,3 +165,117 @@ describe('interactEventSession', () => {
     expect(options.body).toContain('"key":"reject"')
   })
 })
+describe('listEngines', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('fetches engine list from /api/engines', async () => {
+    const mockData = [{ driver: 'openai', engine: 'gpt-4o' }, { driver: 'openai', engine: 'gpt-4o-mini' }]
+    const { listEngines } = await import('./api')
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => mockData,
+    })
+
+    const out = await listEngines({ type: 'token', token: 'abc' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/engines')
+    expect(options.method).toBeUndefined()
+    expect(out).toEqual(mockData)
+  })
+})
+
+describe('startNewConvo with engine/driver', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('includes engine and driver when provided', async () => {
+    const { startNewConvo } = await import('./api')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ convo_id: 'convo-123' }),
+    })
+
+    await startNewConvo({ type: 'token', token: 'abc' }, 'openai', 'Hello', 'gpt-4o', 'openai')
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0]
+    expect(String(url)).toContain('/api/convos')
+    expect(options.method).toBe('POST')
+    const body = JSON.parse(options.body)
+    expect(body.agent).toBe('openai')
+    expect(body.text).toBe('Hello')
+    expect(body.engine).toBe('gpt-4o')
+    expect(body.driver).toBe('openai')
+  })
+
+  it('omits engine and driver when not provided', async () => {
+    const { startNewConvo } = await import('./api')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ convo_id: 'convo-456' }),
+    })
+
+    await startNewConvo({ type: 'token', token: 'abc' }, 'openai', 'Hello')
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0]
+    const body = JSON.parse(options.body)
+    expect(body.agent).toBe('openai')
+    expect(body.text).toBe('Hello')
+    expect(body.engine).toBeUndefined()
+    expect(body.driver).toBeUndefined()
+  })
+})
+
+describe('startTurn with engine/driver', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('includes engine and driver when provided', async () => {
+    const { startTurn } = await import('./api')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ ok: true }),
+    })
+
+    await startTurn({ type: 'token', token: 'abc' }, 'convo-123', 'Hello', 'gpt-4o', 'openai')
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0]
+    expect(String(url)).toContain('/api/convos/convo-123/turn')
+    expect(options.method).toBe('POST')
+    const body = JSON.parse(options.body)
+    expect(body.text).toBe('Hello')
+    expect(body.engine).toBe('gpt-4o')
+    expect(body.driver).toBe('openai')
+  })
+
+  it('omits engine and driver when not provided', async () => {
+    const { startTurn } = await import('./api')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ ok: true }),
+    })
+
+    await startTurn({ type: 'token', token: 'abc' }, 'convo-123', 'Hello')
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0]
+    const body = JSON.parse(options.body)
+    expect(body.text).toBe('Hello')
+    expect(body.engine).toBeUndefined()
+    expect(body.driver).toBeUndefined()
+  })
+})

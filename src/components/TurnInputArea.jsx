@@ -36,14 +36,34 @@ const btnStyle = {
   alignSelf: 'flex-end',
 }
 
-const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, inputHeight }) {
+const selectStyle = {
+  background: '#0f1117',
+  border: '1px solid #2d3148',
+  borderRadius: 8,
+  color: '#e2e8f0',
+  fontSize: 13,
+  padding: '8px 12px',
+  outline: 'none',
+  flexShrink: 0,
+  flex: 1,
+}
+
+function parseEngineValue(value) {
+  if (!value) return { engine: '', driver: '' }
+  const idx = value.indexOf(':')
+  if (idx === -1) return { engine: value, driver: '' }
+  return { driver: value.substring(0, idx), engine: value.substring(idx + 1) }
+}
+
+const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, inputHeight, engines, selectedEngine, onEngineChange }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
     const trimmed = text.trim()
     if (!trimmed || isSending) return
     setText('')
-    onSubmit(trimmed)
+    const { engine, driver } = parseEngineValue(selectedEngine)
+    onSubmit(trimmed, engine, driver)
   }
 
   const handleKeyDown = (e) => {
@@ -54,23 +74,40 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   }
 
   return (
-    <div style={areaStyle}>
-      <textarea
-        style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
-        rows={1}
-        placeholder={placeholder || 'Type a message…'}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={isSending}
-      />
-      <button
-        style={{ ...btnStyle, opacity: isSending || !text.trim() ? 0.5 : 1 }}
-        onClick={handleSubmit}
-        disabled={isSending || !text.trim()}
-      >
-        {isSending ? '…' : (buttonLabel || 'Send')}
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+      {engines && engines.length > 0 && (
+        <select
+          style={selectStyle}
+          value={selectedEngine || ''}
+          onChange={(e) => onEngineChange(e.target.value)}
+          disabled={isSending}
+        >
+          <option value="">Default engine</option>
+          {engines.map((e) => (
+            <option key={e.driver + ':' + e.engine} value={e.driver + ':' + e.engine}>
+              {e.driver}:{e.engine}
+            </option>
+          ))}
+        </select>
+      )}
+      <div style={areaStyle}>
+        <textarea
+          style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
+          rows={1}
+          placeholder={placeholder || 'Type a message…'}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isSending}
+        />
+        <button
+          style={{ ...btnStyle, opacity: isSending || !text.trim() ? 0.5 : 1 }}
+          onClick={handleSubmit}
+          disabled={isSending || !text.trim()}
+        >
+          {isSending ? '…' : (buttonLabel || 'Send')}
+        </button>
+      </div>
     </div>
   )
 })

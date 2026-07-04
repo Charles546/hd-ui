@@ -303,23 +303,29 @@ export async function cancelConvo(creds, convoID) {
 
 // POST /api/convos/:convoID/turn — start a new chat turn from the UI.
 // The turn runs asynchronously on the backend; the API returns immediately.
-export async function startTurn(creds, convoID, text) {
+export async function startTurn(creds, convoID, text, engine, driver) {
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/turn`, creds, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
   })
 }
 
 // POST /api/convos — start a brand-new conversation.
 // Returns { convo_id } so the UI can navigate directly to the new conversation.
-export async function startNewConvo(creds, agentName, text) {
+export async function startNewConvo(creds, agentName, text, engine, driver) {
   return apiFetch('/convos', creds, {
     method: 'POST',
-    body: JSON.stringify({ agent: agentName, text }),
+    body: JSON.stringify({ agent: agentName, text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
   })
 }
+
 
 // GET /api/agents — list configured agent names for the agent-selection dropdown.
 export async function listAgents(creds) {
   return apiFetch('/agents', creds)
+}
+
+// GET /api/engines — list unique {driver, engine} pairs from configured agents.
+export async function listEngines(creds) {
+  return apiFetch('/engines', creds)
 }
