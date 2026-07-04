@@ -9,7 +9,6 @@ const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
 const DEFAULT_INPUT_HEIGHT = 160
-const ENGINE_DROPDOWN_HEIGHT = 50 // Approximate height of dropdown + gap
 
 const STATUS_COLOR = {
   active:    '#38bdf8',
@@ -53,8 +52,7 @@ const s = {
     borderTop: '1px solid #2d3148',
     background: '#11141c',
     flexShrink: 0,
-    maxHeight: 300, // Constrain the input area max height
-    overflowY: 'auto',
+    overflow: 'hidden',
   },
   divider: (active) => ({
     height: 6,
@@ -160,17 +158,17 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
 
   // Fetch convo state to get current engine/driver
   useEffect(() => {
-    if (!convoId || !creds?.token) return
-    
+    if (!convoId || !creds) return
+
     getConvoState(creds, convoId)
       .then((data) => {
         if (!data) return
-        
+
         // The response is keyed by node IP, e.g.:
         // { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
         // Need to unwrap the dynamic node IP key
         const keys = Object.keys(data)
-        
+
         // Find the key that looks like an IP address (contains dots)
         // or just use the first key if there's only one
         let nodeKey = null
@@ -180,30 +178,25 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           // Find key that looks like an IP address
           nodeKey = keys.find(k => k.includes('.')) || keys[0]
         }
-        
+
         if (!nodeKey) return
-        
+
         const convoData = data[nodeKey]
         const agent = convoData?.agent || {}
-        
+
         // Extract Driver and Engine (note: CAPITALIZED in API response)
         const driver = agent?.Driver || agent?.driver || ""
         const engine = agent?.Engine || agent?.engine || ""
-        
-        console.log('getConvoState response:', data)
-        console.log('Unwrapped node key:', nodeKey)
-        console.log('Driver:', driver, 'Engine:', engine)
-        
+
         if (driver && engine) {
           const engineValue = `${driver}:${engine}`
-          console.log('Setting selectedEngine to:', engineValue)
           setSelectedEngine(engineValue)
           setCurrentDriver(driver)
           setCurrentEngine(engine)
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch convo state:', err)
+        // Silently fail - engine selection defaults to "Default engine"
       })
   }, [convoId, creds])
 
@@ -306,11 +299,11 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !convoId) return
     setIsSendingTurn(true)
-    
+
     // Only send if different from current
     const finalDriver = driver && driver !== currentDriver ? driver : undefined
     const finalEngine = engine && engine !== currentEngine ? engine : undefined
-    
+
     try {
       await startTurn(creds, convoId, text, finalEngine, finalDriver)
       fetchHistory(false)
@@ -406,7 +399,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>
-          <div style={s.turnInputArea}>
+          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}
@@ -415,6 +408,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}
+              inputHeight={inputAreaHeight - 20}
             />
           </div>
         </>
