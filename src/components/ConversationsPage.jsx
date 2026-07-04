@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { listConvos, getConvoHistory, cancelConvo, startTurn, startNewConvo, listAgents, listEngines } from '../api'
+import { listConvos, getConvoHistory, getConvoState, cancelConvo, startTurn, startNewConvo, listAgents, listEngines } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
 import NewConvoInput from './NewConvoInput'
@@ -426,6 +426,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [selectedAgent, setSelectedAgent] = useState('')
   const [engines, setEngines] = useState([])
   const [selectedEngine, setSelectedEngine] = useState('')
+  const [currentDriver, setCurrentDriver] = useState('')
+  const [currentEngine, setCurrentEngine] = useState('')
   const [showTools, setShowTools] = useState(false)
   const [showThoughts, setShowThoughts] = useState(false)
   const [showSubAgents, setShowSubAgents] = useState(false)
@@ -539,6 +541,48 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       setSelectedID(initialConvoId)
     }
   }, [initialConvoId])
+  // Fetch convo state to get current engine/driver when conversation changes
+  useEffect(() => {
+    if (!selectedID || !creds) return
+
+    getConvoState(creds, selectedID)
+      .then((data) => {
+        if (!data) return
+
+        // The response is keyed by node IP, e.g.:
+        // { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
+        // Need to unwrap the dynamic node IP key
+        const keys = Object.keys(data)
+
+        // Find the key that looks like an IP address (contains dots)
+        // or just use the first key if there's only one
+        let nodeKey = null
+        if (keys.length === 1) {
+          nodeKey = keys[0]
+        } else {
+          // Find key that looks like an IP address
+          nodeKey = keys.find(k => k.includes('.')) || keys[0]
+        }
+
+        if (!nodeKey) return
+
+        const convoData = data[nodeKey]
+        const agent = convoData?.agent || {}
+
+        // Extract Driver and Engine (note: CAPITALIZED in API response)
+        const driver = agent?.Driver || agent?.driver || ""
+        const engine = agent?.Engine || agent?.engine || ""
+
+        if (driver && engine) {
+          const engineValue = `${driver}:${engine}`
+          setSelectedEngine(engineValue)
+          setCurrentDriver(driver)
+          setCurrentEngine(engine)
+        }
+      })
+      .catch(() => {})
+  }, [selectedID, creds])
+
 
   const handleCancelConvo = useCallback(async (convoID) => {
     setCancellingID(convoID)
@@ -555,8 +599,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !selectedID) return
     setIsSendingTurn(true)
+
+    // Only send if different from current
+    const finalDriver = driver && driver !== currentDriver ? driver : undefined
+    const finalEngine = engine && engine !== currentEngine ? engine : undefined
+
     try {
-      await startTurn(creds, selectedID, text, engine, driver)
+      await startTurn(creds, selectedID, text, finalEngine, finalDriver)
       fetchConvos('poll')
       fetchHistory(false)
     } catch (err) {
@@ -564,7 +613,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, selectedID, fetchConvos, fetchHistory])
+  }, [creds, selectedID, fetchConvos, fetchHistory, currentDriver, currentEngine])
 
   const handleSendNewConvo = useCallback(async (agent, text, engine, driver) => {
     if (!text || !agent) return
@@ -932,9 +981,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
               inputHeight={inputAreaHeight - 20}
-              engines={engines}
-              selectedEngine={selectedEngine}
-              onEngineChange={setSelectedEngine}
             />
           </div>
         )}

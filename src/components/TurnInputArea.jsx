@@ -20,7 +20,6 @@ const inputStyle = {
   lineHeight: 1.5,
   fontFamily: 'inherit',
   minHeight: 38,
-  maxHeight: 140,
 }
 
 const btnStyle = {
@@ -45,7 +44,7 @@ const selectStyle = {
   padding: '8px 12px',
   outline: 'none',
   flexShrink: 0,
-  flex: 1,
+  width: '100%',
 }
 
 function parseEngineValue(value) {
@@ -55,7 +54,7 @@ function parseEngineValue(value) {
   return { driver: value.substring(0, idx), engine: value.substring(idx + 1) }
 }
 
-const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, inputHeight, engines, selectedEngine, onEngineChange }) {
+const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, engines, selectedEngine, onEngineChange, inputHeight }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
@@ -73,8 +72,12 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
     }
   }
 
+  // Account for padding (10px top + 10px bottom) and engine dropdown (approx 40px)
+  const dropdownOffset = engines && engines.length > 0 ? 40 : 0
+  const textareaHeight = inputHeight ? Math.max(38, inputHeight - 20 - dropdownOffset) : undefined
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', height: '100%' }}>
       {engines && engines.length > 0 && (
         <select
           style={selectStyle}
@@ -90,9 +93,9 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
           ))}
         </select>
       )}
-      <div style={areaStyle}>
+      <div style={{ ...areaStyle, flex: 1 }}>
         <textarea
-          style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
+          style={{ ...inputStyle, height: textareaHeight }}
           rows={1}
           placeholder={placeholder || 'Type a message…'}
           value={text}

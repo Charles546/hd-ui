@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getConvoHistory, startTurn, listEngines } from '../api'
+import { getConvoHistory, getConvoState, startTurn, listEngines } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
@@ -38,7 +38,7 @@ const s = {
     flexShrink: 0,
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
-  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
   empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
   btn: {
@@ -52,6 +52,7 @@ const s = {
     borderTop: '1px solid #2d3148',
     background: '#11141c',
     flexShrink: 0,
+    overflow: 'hidden',
   },
   divider: (active) => ({
     height: 6,
@@ -119,6 +120,8 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const [engines, setEngines] = useState([])
   const [selectedEngine, setSelectedEngine] = useState("")
+  const [currentDriver, setCurrentDriver] = useState('')
+  const [currentEngine, setCurrentEngine] = useState('')
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -152,6 +155,50 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     if (!convoId) { setHistory([]); setConvoStatus('unknown'); return }
     fetchHistory(false)
   }, [fetchHistory])
+
+  // Fetch convo state to get current engine/driver
+  useEffect(() => {
+    if (!convoId || !creds) return
+
+    getConvoState(creds, convoId)
+      .then((data) => {
+        if (!data) return
+
+        // The response is keyed by node IP, e.g.:
+        // { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
+        // Need to unwrap the dynamic node IP key
+        const keys = Object.keys(data)
+
+        // Find the key that looks like an IP address (contains dots)
+        // or just use the first key if there's only one
+        let nodeKey = null
+        if (keys.length === 1) {
+          nodeKey = keys[0]
+        } else {
+          // Find key that looks like an IP address
+          nodeKey = keys.find(k => k.includes('.')) || keys[0]
+        }
+
+        if (!nodeKey) return
+
+        const convoData = data[nodeKey]
+        const agent = convoData?.agent || {}
+
+        // Extract Driver and Engine (note: CAPITALIZED in API response)
+        const driver = agent?.Driver || agent?.driver || ""
+        const engine = agent?.Engine || agent?.engine || ""
+
+        if (driver && engine) {
+          const engineValue = `${driver}:${engine}`
+          setSelectedEngine(engineValue)
+          setCurrentDriver(driver)
+          setCurrentEngine(engine)
+        }
+      })
+      .catch((err) => {
+        // Silently fail - engine selection defaults to "Default engine"
+      })
+  }, [convoId, creds])
 
   // Detect transition from idle to active and fetch immediately
   useEffect(() => {
@@ -252,15 +299,20 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !convoId) return
     setIsSendingTurn(true)
+
+    // Only send if different from current
+    const finalDriver = driver && driver !== currentDriver ? driver : undefined
+    const finalEngine = engine && engine !== currentEngine ? engine : undefined
+
     try {
-      await startTurn(creds, convoId, text, engine, driver)
+      await startTurn(creds, convoId, text, finalEngine, finalDriver)
       fetchHistory(false)
     } catch (err) {
       setHistoryError(err.message)
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, convoId, fetchHistory])
+  }, [creds, convoId, fetchHistory, currentDriver, currentEngine])
 
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
@@ -353,10 +405,10 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
               isSending={isSendingTurn}
               placeholder="Start a new turn…"
               buttonLabel="Send"
-              inputHeight={inputAreaHeight - 20}
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}
+              inputHeight={inputAreaHeight - 20}
             />
           </div>
         </>
