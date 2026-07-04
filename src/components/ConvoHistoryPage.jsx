@@ -166,15 +166,19 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       .then((data) => {
         if (!data) return
         
+        
         let convoData = data
         const keys = Object.keys(data || {})
+        
         if (keys.length === 1 && keys[0].includes(".")) {
           convoData = data[keys[0]]
         }
         
         const agent = convoData?.agent || {}
+        
         const driver = agent?.driver || agent?.Driver || ""
         const engine = agent?.engine || agent?.Engine || ""
+        
         
         if (driver && engine) {
           setSelectedEngine(`${driver}:${engine}`)

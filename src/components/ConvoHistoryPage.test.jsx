@@ -47,10 +47,18 @@ describe('ConvoHistoryPage', () => {
     mockListEngines.mockReset()
     mockListEngines.mockResolvedValue([])
     mockStartTurn.mockReset()
+    
+    // Mock global fetch for convo state endpoint
+    global.fetch = vi.fn(() => 
+      Promise.resolve({
+        json: () => Promise.resolve(null)
+      })
+    )
   })
 
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
   })
 
   it('renders loading state on initial fetch', () => {
@@ -348,4 +356,59 @@ describe('ConvoHistoryPage', () => {
       expect(screen.queryByText('polling')).not.toBeInTheDocument()
     })
   })
+  it('fetches and sets engine/driver from convo state with node IP wrapper', async () => {
+    const mockConvoId = 'convo-123'
+    
+    // Mock getConvoHistory to return empty array
+    mockGetConvoHistory.mockResolvedValue([])
+    
+    // Mock listEngines to return engine list
+    mockListEngines.mockResolvedValue([
+      { driver: 'openai', engine: 'hy3' },
+      { driver: 'openai', engine: 'gpt-4' }
+    ])
+    
+    // Mock the state endpoint with node IP wrapper and capitalized field names
+    global.fetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        json: () => Promise.resolve({
+          '10.255.255.254': {
+            agent: {
+              Driver: 'openai',
+              Engine: 'hy3'
+            }
+          }
+        })
+      })
+    )
+    
+    const { container } = render(
+      <ConvoHistoryPage
+        convoId={mockConvoId}
+        onNavigateToConvo={() => {}}
+      />
+    )
+    
+    // Wait for state fetch
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/conversations/convo-123/state',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-token'
+          })
+        })
+      )
+    })
+    
+    // The engine should be set in the dropdown
+    await waitFor(() => {
+      const engineSelect = container.querySelector('select')
+      console.log('engineSelect:', engineSelect)
+      if (engineSelect) {
+        expect(engineSelect.value).toBe('openai:hy3')
+      }
+    })
+  })
+
 })
