@@ -119,6 +119,8 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const [engines, setEngines] = useState([])
   const [selectedEngine, setSelectedEngine] = useState("")
+  const [currentDriver, setCurrentDriver] = useState('')
+  const [currentEngine, setCurrentEngine] = useState('')
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -152,6 +154,36 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     if (!convoId) { setHistory([]); setConvoStatus('unknown'); return }
     fetchHistory(false)
   }, [fetchHistory])
+
+  // Fetch convo state to get current engine/driver
+  useEffect(() => {
+    if (!convoId || !creds?.token) return
+    
+    fetch(`/api/conversations/${encodeURIComponent(convoId)}/state`, {
+      headers: { "Authorization": `Bearer ${creds.token}` }
+    })
+      .then(res => res.json())
+      .then((data) => {
+        if (!data) return
+        
+        let convoData = data
+        const keys = Object.keys(data || {})
+        if (keys.length === 1 && keys[0].includes(".")) {
+          convoData = data[keys[0]]
+        }
+        
+        const agent = convoData?.agent || {}
+        const driver = agent?.driver || agent?.Driver || ""
+        const engine = agent?.engine || agent?.Engine || ""
+        
+        if (driver && engine) {
+          setSelectedEngine(`${driver}:${engine}`)
+          setCurrentDriver(driver)
+          setCurrentEngine(engine)
+        }
+      })
+      .catch(() => {})
+  }, [convoId, creds])
 
   // Detect transition from idle to active and fetch immediately
   useEffect(() => {
@@ -252,15 +284,20 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const handleSendTurn = useCallback(async (text, engine, driver) => {
     if (!text || !convoId) return
     setIsSendingTurn(true)
+    
+    // Only send if different from current
+    const finalDriver = driver && driver !== currentDriver ? driver : undefined
+    const finalEngine = engine && engine !== currentEngine ? engine : undefined
+    
     try {
-      await startTurn(creds, convoId, text, engine, driver)
+      await startTurn(creds, convoId, text, finalEngine, finalDriver)
       fetchHistory(false)
     } catch (err) {
       setHistoryError(err.message)
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, convoId, fetchHistory])
+  }, [creds, convoId, fetchHistory, currentDriver, currentEngine])
 
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
