@@ -6,6 +6,7 @@ import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
 
 const POLL_INTERVAL_MS = 10000
 const IDLE_TIMEOUT_MS = 120000 // 2 minutes
+const CONVO_STATE_POLL_INTERVAL_MS = 30000 // Poll status less frequently than history
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
 const DEFAULT_INPUT_HEIGHT = 160
@@ -105,9 +106,65 @@ function getConvoStatus(history) {
   return 'active'
 }
 
+/**
+ * Derive conversation status from ConvoState as the primary source of truth,
+ * falling back to history-based heuristics when ConvoState data is unavailable.
+ *
+ * Priority:
+ * 1. ConvoState's last_session.status (most recent session)
+ * 2. ConvoState's first_session.status (initial session)
+ * 3. Legacy heuristic from history
+ */
+function deriveConvoStatus(convoState, history) {
+  // Try to extract status from the innermost session structure.
+  // The ConvoState response is keyed by node IP, e.g.:
+  // { "10.255.255.254": { "agent": { ... }, "first_session": { ... }, "last_session": { ... } } }
+  // or the state may come unwrapped.
+
+  if (convoState && typeof convoState === 'object') {
+    // Helper to extract session status from any level
+    function getSessionStatus(obj) {
+      if (!obj || typeof obj !== 'object') return null
+
+      // Check for unwrapped convoState where sessions are at top level
+      if (obj.last_session && obj.last_session.status) {
+        return obj.last_session.status
+      }
+      if (obj.first_session && obj.first_session.status) {
+        return obj.first_session.status
+      }
+
+      // Check for the response keyed by node IP
+      const keys = Object.keys(obj)
+      for (const key of keys) {
+        const val = obj[key]
+        if (val && typeof val === 'object') {
+          if (val.last_session && val.last_session.status) {
+            return val.last_session.status
+          }
+          if (val.first_session && val.first_session.status) {
+            return val.first_session.status
+          }
+        }
+      }
+
+      return null
+    }
+
+    const status = getSessionStatus(convoState)
+    if (status && (status === 'active' || status === 'complete' || status === 'failed' || status === 'cancelled')) {
+      return status
+    }
+  }
+
+  // Fallback to history-based heuristic
+  return getConvoStatus(history)
+}
+
 export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const { creds } = useAuth()
   const [history, setHistory] = useState([])
+  const [convoState, setConvoState] = useState(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [isPaused, setIsPaused] = useState(false)
@@ -123,6 +180,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [currentDriver, setCurrentDriver] = useState('')
   const [currentEngine, setCurrentEngine] = useState('')
   const timerRef = useRef(null)
+  const convoStateTimerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
@@ -144,29 +202,34 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           msgs = Array.isArray(vals[0]) ? vals[0] : []
         }
         setHistory(msgs)
-        setConvoStatus(getConvoStatus(msgs))
+        // Re-derive status with current convoState and new history
+        setConvoStatus((prevStatus) => {
+          // Use a closure to access the latest convoState
+          return deriveConvoStatus(convoStateRef.current, msgs)
+        })
       })
       .catch((err) => setHistoryError(err.message))
       .finally(() => setHistoryLoading(false))
   }, [convoId, creds])
 
-  // initial load
-  useEffect(() => {
-    if (!convoId) { setHistory([]); setConvoStatus('unknown'); return }
-    fetchHistory(false)
-  }, [fetchHistory])
+  // Ref to track latest convoState for use in fetchHistory callback
+  const convoStateRef = useRef(null)
 
-  // Fetch convo state to get current engine/driver
-  useEffect(() => {
+  // Fetch ConvoState (for status and engine/driver info)
+  const fetchConvoState = useCallback(() => {
     if (!convoId || !creds) return
 
     getConvoState(creds, convoId)
       .then((data) => {
         if (!data) return
 
-        // The response is keyed by node IP, e.g.:
-        // { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
-        // Need to unwrap the dynamic node IP key
+        setConvoState(data)
+        convoStateRef.current = data
+
+        // Derive status from ConvoState
+        setConvoStatus(deriveConvoStatus(data, history))
+
+        // Extract engine/driver from convoState (same logic as before)
         const keys = Object.keys(data)
 
         // Find the key that looks like an IP address (contains dots)
@@ -196,9 +259,16 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
         }
       })
       .catch((err) => {
-        // Silently fail - engine selection defaults to "Default engine"
+        // Silently fail
       })
-  }, [convoId, creds])
+  }, [convoId, creds, history])
+
+  // initial load
+  useEffect(() => {
+    if (!convoId) { setHistory([]); setConvoState(null); convoStateRef.current = null; setConvoStatus('unknown'); return }
+    fetchHistory(false)
+    fetchConvoState()
+  }, [fetchHistory, fetchConvoState])
 
   // Detect transition from idle to active and fetch immediately
   useEffect(() => {
@@ -210,7 +280,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     }
   }, [isIdle, isActive, isPaused, fetchHistory])
 
-  // auto-poll when active, not paused, not idle
+  // auto-poll history when active, not paused, not idle
   useEffect(() => {
     if (!isActive || isPaused || isIdle) {
       clearInterval(timerRef.current)
@@ -220,6 +290,18 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     timerRef.current = setInterval(() => fetchHistory(true), POLL_INTERVAL_MS)
     return () => clearInterval(timerRef.current)
   }, [fetchHistory, isActive, isPaused, isIdle])
+
+  // auto-poll convoState when active, not paused, not idle
+  // (less frequent than history polling, just to keep status fresh)
+  useEffect(() => {
+    if (!isActive || isPaused || isIdle) {
+      clearInterval(convoStateTimerRef.current)
+      return
+    }
+
+    convoStateTimerRef.current = setInterval(() => fetchConvoState(), CONVO_STATE_POLL_INTERVAL_MS)
+    return () => clearInterval(convoStateTimerRef.current)
+  }, [fetchConvoState, isActive, isPaused, isIdle])
 
   // final refresh when conversation transitions from active → inactive
   useEffect(() => {
