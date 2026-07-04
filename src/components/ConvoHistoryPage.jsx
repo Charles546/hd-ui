@@ -107,6 +107,43 @@ function getConvoStatus(history) {
 }
 
 /**
+ * Extract the authoritative session status from a ConvoState object.
+ * Returns the status string (active/complete/failed/cancelled) or null
+ * if no session status is available in the ConvoState data.
+ */
+function getConvoStateStatus(convoState) {
+  if (!convoState || typeof convoState !== 'object') return null
+
+  // The ConvoState response is typically keyed by node IP, e.g.:
+  // { "10.255.255.254": { "agent": { ... }, "first_session": { ... }, "last_session": { ... } } }
+  // Try each value for session data, or check top-level for unwrapped structure.
+  const VALID_STATUSES = new Set(['active', 'complete', 'failed', 'cancelled'])
+
+  // Check each key — one of them is the node-level wrapper containing sessions
+  for (const key of Object.keys(convoState)) {
+    const val = convoState[key]
+    if (val && typeof val === 'object') {
+      if (val.last_session?.status && VALID_STATUSES.has(val.last_session.status)) {
+        return val.last_session.status
+      }
+      if (val.first_session?.status && VALID_STATUSES.has(val.first_session.status)) {
+        return val.first_session.status
+      }
+    }
+  }
+
+  // Also check for unwrapped structure (convoState directly has sessions)
+  if (convoState.last_session?.status && VALID_STATUSES.has(convoState.last_session.status)) {
+    return convoState.last_session.status
+  }
+  if (convoState.first_session?.status && VALID_STATUSES.has(convoState.first_session.status)) {
+    return convoState.first_session.status
+  }
+
+  return null
+}
+
+/**
  * Derive conversation status from ConvoState as the primary source of truth,
  * falling back to history-based heuristics when ConvoState data is unavailable.
  *
@@ -116,46 +153,8 @@ function getConvoStatus(history) {
  * 3. Legacy heuristic from history
  */
 function deriveConvoStatus(convoState, history) {
-  // Try to extract status from the innermost session structure.
-  // The ConvoState response is keyed by node IP, e.g.:
-  // { "10.255.255.254": { "agent": { ... }, "first_session": { ... }, "last_session": { ... } } }
-  // or the state may come unwrapped.
-
-  if (convoState && typeof convoState === 'object') {
-    // Helper to extract session status from any level
-    function getSessionStatus(obj) {
-      if (!obj || typeof obj !== 'object') return null
-
-      // Check for unwrapped convoState where sessions are at top level
-      if (obj.last_session && obj.last_session.status) {
-        return obj.last_session.status
-      }
-      if (obj.first_session && obj.first_session.status) {
-        return obj.first_session.status
-      }
-
-      // Check for the response keyed by node IP
-      const keys = Object.keys(obj)
-      for (const key of keys) {
-        const val = obj[key]
-        if (val && typeof val === 'object') {
-          if (val.last_session && val.last_session.status) {
-            return val.last_session.status
-          }
-          if (val.first_session && val.first_session.status) {
-            return val.first_session.status
-          }
-        }
-      }
-
-      return null
-    }
-
-    const status = getSessionStatus(convoState)
-    if (status && (status === 'active' || status === 'complete' || status === 'failed' || status === 'cancelled')) {
-      return status
-    }
-  }
+  const sessionStatus = getConvoStateStatus(convoState)
+  if (sessionStatus) return sessionStatus
 
   // Fallback to history-based heuristic
   return getConvoStatus(history)
@@ -202,11 +201,9 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           msgs = Array.isArray(vals[0]) ? vals[0] : []
         }
         setHistory(msgs)
-        // Re-derive status with current convoState and new history
-        setConvoStatus((prevStatus) => {
-          // Use a closure to access the latest convoState
-          return deriveConvoStatus(convoStateRef.current, msgs)
-        })
+        // Re-derive status with current convoState and new history.
+        // Use convoStateRef to avoid stale closures (fetchHistory is stable).
+        setConvoStatus(deriveConvoStatus(convoStateRef.current, msgs))
       })
       .catch((err) => setHistoryError(err.message))
       .finally(() => setHistoryLoading(false))
@@ -215,7 +212,10 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   // Ref to track latest convoState for use in fetchHistory callback
   const convoStateRef = useRef(null)
 
-  // Fetch ConvoState (for status and engine/driver info)
+  // Fetch ConvoState (for status and engine/driver info).
+  // IMPORTANT: Does NOT depend on `history` — doing so would cause an infinite
+  // loop because fetchHistory updates history, which would recreate this
+  // callback, which would re-trigger the initial-load useEffect.
   const fetchConvoState = useCallback(() => {
     if (!convoId || !creds) return
 
@@ -226,8 +226,12 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
         setConvoState(data)
         convoStateRef.current = data
 
-        // Derive status from ConvoState
-        setConvoStatus(deriveConvoStatus(data, history))
+        // Derive status from ConvoState session data only (no history fallback
+        // here — fetchHistory already handles that path).
+        const sessionStatus = getConvoStateStatus(data)
+        if (sessionStatus) {
+          setConvoStatus(sessionStatus)
+        }
 
         // Extract engine/driver from convoState (same logic as before)
         const keys = Object.keys(data)
@@ -261,7 +265,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       .catch((err) => {
         // Silently fail
       })
-  }, [convoId, creds, history])
+  }, [convoId, creds])
 
   // initial load
   useEffect(() => {
