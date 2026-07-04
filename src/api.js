@@ -293,6 +293,13 @@ export async function getConvoHistory(creds, convoID) {
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/history`, creds)
 }
 
+// GET /api/convos/:convoID — get conversation state (including current engine/driver)
+// The response is keyed by node IP, e.g.:
+// { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
+export async function getConvoState(creds, convoID) {
+  return apiFetch(`/convos/${encodeURIComponent(convoID)}`, creds)
+}
+
 // POST /api/convos/:convoID/cancel — mark conversation as cancelled
 // Active sessions detect the flag on their next poll cycle and abort.
 // Cancelling a parent convo_id also cascades to all child sessions that

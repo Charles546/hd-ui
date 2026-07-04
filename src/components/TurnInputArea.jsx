@@ -45,7 +45,7 @@ const selectStyle = {
   padding: '8px 12px',
   outline: 'none',
   flexShrink: 0,
-  flex: 1,
+  width: '100%',
 }
 
 function parseEngineValue(value) {
@@ -55,7 +55,7 @@ function parseEngineValue(value) {
   return { driver: value.substring(0, idx), engine: value.substring(idx + 1) }
 }
 
-const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, inputHeight, engines, selectedEngine, onEngineChange }) {
+const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, engines, selectedEngine, onEngineChange }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
@@ -74,7 +74,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
       {engines && engines.length > 0 && (
         <select
           style={selectStyle}
@@ -92,7 +92,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
       )}
       <div style={areaStyle}>
         <textarea
-          style={inputHeight ? { ...inputStyle, height: inputHeight, maxHeight: inputHeight, overflowY: 'auto' } : inputStyle}
+          style={inputStyle}
           rows={1}
           placeholder={placeholder || 'Type a message…'}
           value={text}

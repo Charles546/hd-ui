@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getConvoHistory, startTurn, listEngines } from '../api'
+import { getConvoHistory, getConvoState, startTurn, listEngines } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
@@ -9,6 +9,7 @@ const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
 const DEFAULT_INPUT_HEIGHT = 160
+const ENGINE_DROPDOWN_HEIGHT = 50 // Approximate height of dropdown + gap
 
 const STATUS_COLOR = {
   active:    '#38bdf8',
@@ -38,7 +39,7 @@ const s = {
     flexShrink: 0,
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
-  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
   empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
   btn: {
@@ -52,6 +53,8 @@ const s = {
     borderTop: '1px solid #2d3148',
     background: '#11141c',
     flexShrink: 0,
+    maxHeight: 300, // Constrain the input area max height
+    overflowY: 'auto',
   },
   divider: (active) => ({
     height: 6,
@@ -159,34 +162,49 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   useEffect(() => {
     if (!convoId || !creds?.token) return
     
-    fetch(`/api/conversations/${encodeURIComponent(convoId)}/state`, {
-      headers: { "Authorization": `Bearer ${creds.token}` }
-    })
-      .then(res => res.json())
+    getConvoState(creds, convoId)
       .then((data) => {
         if (!data) return
         
+        // The response is keyed by node IP, e.g.:
+        // { "10.255.255.254": { "agent": { "Driver": "openai", "Engine": "hy3" } } }
+        // Need to unwrap the dynamic node IP key
+        const keys = Object.keys(data)
         
-        let convoData = data
-        const keys = Object.keys(data || {})
-        
-        if (keys.length === 1 && keys[0].includes(".")) {
-          convoData = data[keys[0]]
+        // Find the key that looks like an IP address (contains dots)
+        // or just use the first key if there's only one
+        let nodeKey = null
+        if (keys.length === 1) {
+          nodeKey = keys[0]
+        } else {
+          // Find key that looks like an IP address
+          nodeKey = keys.find(k => k.includes('.')) || keys[0]
         }
         
+        if (!nodeKey) return
+        
+        const convoData = data[nodeKey]
         const agent = convoData?.agent || {}
         
-        const driver = agent?.driver || agent?.Driver || ""
-        const engine = agent?.engine || agent?.Engine || ""
+        // Extract Driver and Engine (note: CAPITALIZED in API response)
+        const driver = agent?.Driver || agent?.driver || ""
+        const engine = agent?.Engine || agent?.engine || ""
         
+        console.log('getConvoState response:', data)
+        console.log('Unwrapped node key:', nodeKey)
+        console.log('Driver:', driver, 'Engine:', engine)
         
         if (driver && engine) {
-          setSelectedEngine(`${driver}:${engine}`)
+          const engineValue = `${driver}:${engine}`
+          console.log('Setting selectedEngine to:', engineValue)
+          setSelectedEngine(engineValue)
           setCurrentDriver(driver)
           setCurrentEngine(engine)
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Failed to fetch convo state:', err)
+      })
   }, [convoId, creds])
 
   // Detect transition from idle to active and fetch immediately
@@ -388,13 +406,12 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>
-          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
+          <div style={s.turnInputArea}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}
               placeholder="Start a new turn…"
               buttonLabel="Send"
-              inputHeight={inputAreaHeight - 20}
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}

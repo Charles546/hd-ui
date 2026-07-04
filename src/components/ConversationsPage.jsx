@@ -932,9 +932,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
               inputHeight={inputAreaHeight - 20}
-              engines={engines}
-              selectedEngine={selectedEngine}
-              onEngineChange={setSelectedEngine}
             />
           </div>
         )}
