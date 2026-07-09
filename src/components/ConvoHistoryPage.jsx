@@ -383,8 +383,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
         )}
         {history.map((msg, i) => {
           const role = msg.Role || msg.role || ''
-          const hasToolCalls = (msg.ToolCalls || []).length > 0
-          if (!showTools && (role === 'tool' || role === 'tool_result' || (role === 'agent' && hasToolCalls))) return null
+          if (!showTools && (role === 'tool' || role === 'tool_result' || (role === 'agent' && !msg.content))) return null
           return <MessageBubble key={`${i}`} msg={msg} idx={i} showTools={showTools} showThoughts={showThoughts} onNavigateToSubAgent={handleNavigateToSubAgent} />
         })}
         <div ref={historyEndRef} />
