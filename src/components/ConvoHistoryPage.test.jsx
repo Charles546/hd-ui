@@ -125,6 +125,70 @@ describe('ConvoHistoryPage', () => {
     })
   })
 
+  it('shows agent message with content and tool calls when showTools is false', async () => {
+    const messages = makeMessages([
+      { Role: 'agent', content: 'I found the answer', ToolCalls: [{ id: '1', function: { name: 'search' } }] },
+      { Role: 'user', content: 'Thanks' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      const bubbles = screen.getAllByTestId('message-bubble')
+      // Agent message has content, so it should be visible even with tool calls
+      expect(bubbles).toHaveLength(2)
+      expect(bubbles[0]).toHaveAttribute('data-role', 'agent')
+      expect(bubbles[0]).toHaveTextContent('I found the answer')
+    })
+  })
+
+  it('hides agent message with only tool calls (no content) when showTools is false', async () => {
+    // Build the message manually so we can set content to an empty string
+    // (makeMessages would replace '' with the default 'message 0')
+    const messages = [
+      { Role: 'agent', content: '', ToolCalls: [{ id: '1', function: { name: 'search' } }], ToolResult: [] },
+      { Role: 'user', content: 'Hello', ToolCalls: [], ToolResult: [] },
+    ]
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      const bubbles = screen.getAllByTestId('message-bubble')
+      // Agent message has no content, should be hidden when showTools is false
+      expect(bubbles).toHaveLength(1)
+      expect(bubbles[0]).toHaveAttribute('data-role', 'user')
+    })
+  })
+
+  it('shows agent message with content and tool calls when showTools is true', async () => {
+    const messages = makeMessages([
+      { Role: 'agent', content: 'I searched and found', ToolCalls: [{ id: '1', function: { name: 'search' } }] },
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      const bubbles = screen.getAllByTestId('message-bubble')
+      // Agent message has content, so it's visible even with showTools=false
+      expect(bubbles).toHaveLength(2)
+    })
+
+    // Enable show tools
+    const checkbox = screen.getByLabelText('Show tools')
+    fireEvent.click(checkbox)
+
+    await waitFor(() => {
+      const bubbles = screen.getAllByTestId('message-bubble')
+      expect(bubbles).toHaveLength(2)
+      expect(bubbles[0]).toHaveAttribute('data-role', 'agent')
+      expect(bubbles[0]).toHaveTextContent('I searched and found')
+    })
+  })
+
   it('show thoughts toggle controls thought visibility on messages', async () => {
     const messages = makeMessages([
       { Role: 'agent', content: 'Answer', thoughts: 'I am thinking' },
