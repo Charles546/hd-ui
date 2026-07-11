@@ -14,9 +14,10 @@ vi.mock('../api', () => ({
   listEngines: (...args) => mockListEngines(...args),
 }))
 
+const mockCreds = { type: 'token', token: 'test-token' }
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
-    creds: { type: 'token', token: 'test-token' },
+    creds: mockCreds,
   }),
 }))
 
@@ -96,9 +97,8 @@ describe('ConvoHistoryPage', () => {
 
     render(<ConvoHistoryPage convoId="convo-123" />)
 
-    await waitFor(() => {
-      expect(screen.getByText('No messages in history')).toBeInTheDocument()
-    })
+    // findByText waits for the text to appear, handling async loading state
+    expect(await screen.findByText('No messages in history')).toBeInTheDocument()
   })
 
   it('renders messages with correct roles', async () => {

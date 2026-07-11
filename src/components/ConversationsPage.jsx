@@ -18,6 +18,7 @@ const POLL_INTERVAL_MS = 10000
 const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const INITIAL_LOOK_BACK = 12
 const POLL_LOOK_BACK = 2
+const FETCH_MORE_LOOK_BACK = 6
 
 const STATUS_COLOR = {
   active:    '#38bdf8',
@@ -417,6 +418,14 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null)
   const [oldestAsOf, setOldestAsOf] = useState('')
   const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [consumedMarkers, setConsumedMarkers] = useState(new Set())
+  const consumedMarkersRef = useRef(consumedMarkers)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    consumedMarkersRef.current = consumedMarkers
+  }, [consumedMarkers])
+
   const [cancellingID, setCancellingID] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [isHistoryPaused, setIsHistoryPaused] = useState(false)
@@ -445,8 +454,12 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
     const isFetchMore = mode === 'more'
-    const lookBack = isInitial ? INITIAL_LOOK_BACK : (isFetchMore ? 6 : POLL_LOOK_BACK)
+    const lookBack = isInitial ? INITIAL_LOOK_BACK : (isFetchMore ? FETCH_MORE_LOOK_BACK : POLL_LOOK_BACK)
     const asOf = isFetchMore ? oldestAsOf : ''
+
+    if (isInitial) {
+      setConsumedMarkers(new Set())
+    }
 
     if (isFetchMore) {
       setIsFetchingMore(true)
@@ -459,13 +472,49 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       const data = await listConvos(creds, { lookBack, asOf })
       const { convos: incoming, markers } = normalizeConvos(data)
 
-      if (markers.length > 0) {
-        setOldestAsOf((prev) => {
-          const next = markers[0]
-          return !prev || next < prev ? next : prev
-        })
-      } else if (isInitial) {
-        setOldestAsOf('')
+      if (isFetchMore) {
+        // Compute new consumedMarkers based on current state and response
+        const newConsumed = new Set(consumedMarkersRef.current)
+        
+        // If no new conversations were loaded and we have an asOf,
+        // mark this asOf as consumed (it's an empty time block)
+        if (incoming.length === 0 && asOf) {
+          newConsumed.add(asOf)
+        }
+        
+        // Find the oldest candidate marker that is:
+        // 1. Strictly older than the current asOf
+        // 2. Not already consumed
+        let newOldestAsOf = oldestAsOf
+        if (asOf) {
+          const sortedMarkers = [...markers].sort()
+          const candidates = sortedMarkers.filter(
+            (m) => (!newConsumed.has(m)) && m < asOf
+          )
+          
+          if (candidates.length > 0) {
+            // Use the oldest (smallest) candidate
+            const next = candidates[0]
+            newOldestAsOf = (!oldestAsOf || next < oldestAsOf) ? next : oldestAsOf
+          } else {
+            // No candidates found - all markers consumed or no markers
+            newOldestAsOf = ''
+          }
+        }
+        
+        // Update both states (not nested)
+        setConsumedMarkers(newConsumed)
+        setOldestAsOf(newOldestAsOf)
+      } else {
+        // Initial or poll mode
+        if (markers.length > 0) {
+          setOldestAsOf((prev) => {
+            const next = markers[0]
+            return !prev || next < prev ? next : prev
+          })
+        } else {
+          setOldestAsOf('')
+        }
       }
 
       setConvos((prev) => isInitial ? mergeConvos([], incoming) : mergeConvos(prev, incoming))
