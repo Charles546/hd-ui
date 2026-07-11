@@ -43,8 +43,27 @@ function makeMessages(overrides = []) {
   }))
 }
 
+/**
+ * Build a ConvoState response shaped like the real API (keyed by node IP).
+ * @param {object} overrides - Fields to merge into the inner convoData object.
+ */
+function makeConvoState(overrides = {}) {
+  return {
+    '10.255.255.254': {
+      agent: { Driver: 'openai', Engine: 'hy3' },
+      ...overrides,
+    },
+  }
+}
+
+// Helper to flush all pending timers and promises
+async function flushTimers() {
+  await vi.advanceTimersByTimeAsync(100)
+}
+
 describe('ConvoHistoryPage', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     mockGetConvoHistory.mockReset()
     mockGetConvoState.mockReset()
     mockGetConvoState.mockResolvedValue(null) // Default: no convo state
@@ -56,6 +75,7 @@ describe('ConvoHistoryPage', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   it('renders loading state on initial fetch', () => {
@@ -397,6 +417,192 @@ describe('ConvoHistoryPage', () => {
     await waitFor(() => {
       expect(screen.getByText('complete')).toBeInTheDocument()
       expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  // ─── ConvoState-derived status tests ────────────────────────────────────
+
+  it('derives status from ConvoState last_session.status = complete', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Thinking...', ToolCalls: [{ id: '1', function: { name: 'test' } }], ToolResult: [] },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // ConvoState says complete even though history heuristic would say active
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { status: 'complete', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('complete')).toBeInTheDocument()
+      // Should NOT show polling since derived status is terminal
+      expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  it('derives status from ConvoState last_session.status = failed', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Thinking...' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { status: 'failed', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('failed')).toBeInTheDocument()
+      expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  it('derives status from ConvoState last_session.status = cancelled', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Working...' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { status: 'cancelled', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('cancelled')).toBeInTheDocument()
+      expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  it('derives status from ConvoState last_session.status = active', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Here is the answer.' }, // history would say complete
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { status: 'active', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument()
+      // Should show polling since status is active
+      expect(screen.getByText('polling')).toBeInTheDocument()
+    })
+  })
+
+  it('falls back to first_session.status when last_session has no status', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // No last_session, but first_session says complete
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: null,
+        first_session: { status: 'complete', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('complete')).toBeInTheDocument()
+      expect(screen.queryByText('polling')).not.toBeInTheDocument()
+    })
+  })
+
+  it('falls back to first_session.status when last_session has no status field', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { session_id: 'sess-last' }, // no status field
+        first_session: { status: 'failed', session_id: 'sess-first' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('failed')).toBeInTheDocument()
+    })
+  })
+
+  it('falls back to history heuristic when ConvoState is null', async () => {
+    // History says active (last message from user)
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // getConvoState returns null (e.g. network error or convo not found)
+    mockGetConvoState.mockResolvedValue(null)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument()
+    })
+  })
+
+  it('falls back to history heuristic when ConvoState returns empty object', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Complete.' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // ConvoState returns an empty object (no node data)
+    mockGetConvoState.mockResolvedValue({})
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('complete')).toBeInTheDocument()
+    })
+  })
+
+  it('uses only recognized status values from ConvoState (ignores unknown)', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // ConvoState has an unrecognized status value; should fall back to history
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        last_session: { status: 'bogus', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      // Should fall back to history heuristic (active, since last msg is user)
+      expect(screen.getByText('active')).toBeInTheDocument()
     })
   })
 
