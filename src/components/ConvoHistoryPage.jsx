@@ -392,13 +392,21 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
 
     try {
       await startTurn(creds, convoId, text, finalEngine, finalDriver)
+      // Optimistically set status to 'active' so polling restarts immediately
+      setConvoStatus('active')
+      // Fetch authoritative status from backend
+      fetchConvoState()
+      // Refresh history with the new user message
       fetchHistory(false)
     } catch (err) {
       setHistoryError(err.message)
+      // Ensure correct status is reflected on error
+      fetchConvoState()
+      fetchHistory(false)
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, convoId, fetchHistory, currentDriver, currentEngine])
+  }, [creds, convoId, fetchHistory, fetchConvoState, setConvoStatus, currentDriver, currentEngine])
 
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
