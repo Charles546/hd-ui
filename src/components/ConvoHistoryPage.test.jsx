@@ -6,12 +6,14 @@ const mockGetConvoHistory = vi.fn()
 const mockGetConvoState = vi.fn()
 const mockListEngines = vi.fn()
 const mockStartTurn = vi.fn()
+const mockListAgents = vi.fn()
 
 vi.mock('../api', () => ({
   getConvoHistory: (...args) => mockGetConvoHistory(...args),
   getConvoState: (...args) => mockGetConvoState(...args),
   startTurn: (...args) => mockStartTurn(...args),
   listEngines: (...args) => mockListEngines(...args),
+  listAgents: (...args) => mockListAgents(...args),
 }))
 
 const mockCreds = { type: 'token', token: 'test-token' }
@@ -44,10 +46,6 @@ function makeMessages(overrides = []) {
   }))
 }
 
-/**
- * Build a ConvoState response shaped like the real API (keyed by node IP).
- * @param {object} overrides - Fields to merge into the inner convoData object.
- */
 function makeConvoState(overrides = {}) {
   return {
     '10.255.255.254': {
@@ -57,7 +55,6 @@ function makeConvoState(overrides = {}) {
   }
 }
 
-// Helper to flush all pending timers and promises
 async function flushTimers() {
   await vi.advanceTimersByTimeAsync(100)
 }
@@ -67,10 +64,12 @@ describe('ConvoHistoryPage', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     mockGetConvoHistory.mockReset()
     mockGetConvoState.mockReset()
-    mockGetConvoState.mockResolvedValue(null) // Default: no convo state
+    mockGetConvoState.mockResolvedValue(null)
     mockListEngines.mockReset()
     mockListEngines.mockResolvedValue([])
     mockStartTurn.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -80,15 +79,12 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('renders loading state on initial fetch', () => {
-    // Never-resolving promise keeps loading state
     mockGetConvoHistory.mockReturnValue(new Promise(() => {}))
-    mockGetConvoState.mockReturnValue(new Promise(() => {})) // Also mock getConvoState
+    mockGetConvoState.mockReturnValue(new Promise(() => {}))
 
     const { unmount } = render(<ConvoHistoryPage convoId="convo-123" />)
 
     expect(screen.getByText('Loading…')).toBeInTheDocument()
-
-    // Clean up the mounted component to avoid leaking into other tests
     unmount()
   })
 
@@ -97,7 +93,6 @@ describe('ConvoHistoryPage', () => {
 
     render(<ConvoHistoryPage convoId="convo-123" />)
 
-    // findByText waits for the text to appear, handling async loading state
     expect(await screen.findByText('No messages in history')).toBeInTheDocument()
   })
 
@@ -131,17 +126,15 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      // First message is tool, should be hidden when showTools is false
-      expect(bubbles).toHaveLength(1) // Only user message visible
+      expect(bubbles).toHaveLength(1)
     })
 
-    // Click show tools
     const checkbox = screen.getByLabelText('Show tools')
     fireEvent.click(checkbox)
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      expect(bubbles).toHaveLength(2) // Both messages visible
+      expect(bubbles).toHaveLength(2)
     })
   })
 
@@ -156,7 +149,6 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      // Agent message has content, so it should be visible even with tool calls
       expect(bubbles).toHaveLength(2)
       expect(bubbles[0]).toHaveAttribute('data-role', 'agent')
       expect(bubbles[0]).toHaveTextContent('I found the answer')
@@ -164,8 +156,6 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('hides agent message with only tool calls (no content) when showTools is false', async () => {
-    // Build the message manually so we can set content to an empty string
-    // (makeMessages would replace '' with the default 'message 0')
     const messages = [
       { Role: 'agent', content: '', ToolCalls: [{ id: '1', function: { name: 'search' } }], ToolResult: [] },
       { Role: 'user', content: 'Hello', ToolCalls: [], ToolResult: [] },
@@ -176,7 +166,6 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      // Agent message has no content, should be hidden when showTools is false
       expect(bubbles).toHaveLength(1)
       expect(bubbles[0]).toHaveAttribute('data-role', 'user')
     })
@@ -193,11 +182,9 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      // Agent message has content, so it's visible even with showTools=false
       expect(bubbles).toHaveLength(2)
     })
 
-    // Enable show tools
     const checkbox = screen.getByLabelText('Show tools')
     fireEvent.click(checkbox)
 
@@ -224,7 +211,6 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('pause/resume button appears for active convos and toggles', async () => {
-    // Active: last message from user (waiting for agent response)
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
     ])
@@ -280,7 +266,6 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('turn input is hidden for active convos', async () => {
-    // Active: last message from user
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
     ])
@@ -348,7 +333,6 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       const bubbles = screen.getAllByTestId('message-bubble')
-      // When onNavigateToConvo is provided, the nav link should be wired
       expect(bubbles[0]).toHaveAttribute('data-has-nav', 'true')
     })
   })
@@ -360,7 +344,6 @@ describe('ConvoHistoryPage', () => {
     render(<ConvoHistoryPage convoId={longId} />)
 
     await waitFor(() => {
-      // Should show truncated ID
       expect(screen.getByText(/convo_ab…789jkl/)).toBeInTheDocument()
     })
   })
@@ -390,7 +373,6 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('polling status indicator shows polling when active', async () => {
-    // Active: last message from user (waiting for agent response)
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
       { Role: 'agent', content: 'Let me think...' },
@@ -429,7 +411,6 @@ describe('ConvoHistoryPage', () => {
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    // ConvoState says complete even though history heuristic would say active
     mockGetConvoState.mockResolvedValue(
       makeConvoState({
         last_session: { status: 'complete', session_id: 'sess-1' },
@@ -440,7 +421,6 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('complete')).toBeInTheDocument()
-      // Should NOT show polling since derived status is terminal
       expect(screen.queryByText('polling')).not.toBeInTheDocument()
     })
   })
@@ -490,7 +470,7 @@ describe('ConvoHistoryPage', () => {
   it('derives status from ConvoState last_session.status = active', async () => {
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
-      { Role: 'agent', content: 'Here is the answer.' }, // history would say complete
+      { Role: 'agent', content: 'Here is the answer.' },
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
@@ -504,7 +484,6 @@ describe('ConvoHistoryPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('active')).toBeInTheDocument()
-      // Should show polling since status is active
       expect(screen.getByText('polling')).toBeInTheDocument()
     })
   })
@@ -515,7 +494,6 @@ describe('ConvoHistoryPage', () => {
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    // No last_session, but first_session says complete
     mockGetConvoState.mockResolvedValue(
       makeConvoState({
         last_session: null,
@@ -539,7 +517,7 @@ describe('ConvoHistoryPage', () => {
 
     mockGetConvoState.mockResolvedValue(
       makeConvoState({
-        last_session: { session_id: 'sess-last' }, // no status field
+        last_session: { session_id: 'sess-last' },
         first_session: { status: 'failed', session_id: 'sess-first' },
       })
     )
@@ -552,13 +530,11 @@ describe('ConvoHistoryPage', () => {
   })
 
   it('falls back to history heuristic when ConvoState is null', async () => {
-    // History says active (last message from user)
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    // getConvoState returns null (e.g. network error or convo not found)
     mockGetConvoState.mockResolvedValue(null)
 
     render(<ConvoHistoryPage convoId="convo-123" />)
@@ -575,7 +551,6 @@ describe('ConvoHistoryPage', () => {
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    // ConvoState returns an empty object (no node data)
     mockGetConvoState.mockResolvedValue({})
 
     render(<ConvoHistoryPage convoId="convo-123" />)
@@ -591,7 +566,6 @@ describe('ConvoHistoryPage', () => {
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    // ConvoState has an unrecognized status value; should fall back to history
     mockGetConvoState.mockResolvedValue(
       makeConvoState({
         last_session: { status: 'bogus', session_id: 'sess-1' },
@@ -601,24 +575,19 @@ describe('ConvoHistoryPage', () => {
     render(<ConvoHistoryPage convoId="convo-123" />)
 
     await waitFor(() => {
-      // Should fall back to history heuristic (active, since last msg is user)
       expect(screen.getByText('active')).toBeInTheDocument()
     })
   })
 
   it('fetches and sets engine/driver from convo state with node IP wrapper', async () => {
     const mockConvoId = 'convo-123'
-    
-    // Mock getConvoHistory to return empty array
+
     mockGetConvoHistory.mockResolvedValue([])
-    
-    // Mock listEngines to return engine list
     mockListEngines.mockResolvedValue([
       { driver: 'openai', engine: 'hy3' },
       { driver: 'openai', engine: 'gpt-4' }
     ])
-    
-    // Mock getConvoState to return data with node IP wrapper and capitalized field names
+
     mockGetConvoState.mockResolvedValue({
       '10.255.255.254': {
         agent: {
@@ -634,8 +603,7 @@ describe('ConvoHistoryPage', () => {
         onNavigateToConvo={() => {}}
       />
     )
-    
-    // Wait for state fetch
+
     await waitFor(() => {
       expect(mockGetConvoState).toHaveBeenCalledWith(
         { type: 'token', token: 'test-token' },
@@ -643,7 +611,6 @@ describe('ConvoHistoryPage', () => {
       )
     })
 
-    // The engine should be set in the dropdown
     await waitFor(() => {
       const engineSelect = container.querySelector('select')
       if (engineSelect) {

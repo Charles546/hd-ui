@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { getConvoHistory, getConvoState, startTurn, listEngines } from '../api'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { getConvoHistory, getConvoState, startTurn, listEngines, listAgents } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TurnInputArea from './TurnInputArea'
+import AgentPickerModal from './AgentPickerModal'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
+import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 
 const POLL_INTERVAL_MS = 10000
 const IDLE_TIMEOUT_MS = 120000 // 2 minutes
@@ -73,9 +75,6 @@ const s = {
 function getConvoStatus(history) {
   if (!history || history.length === 0) return 'unknown'
 
-  // Scan all messages for explicit terminal status.
-  // Some messages in the history may carry a .status field indicating
-  // the conversation state at the time that message was recorded.
   for (let i = history.length - 1; i >= 0; i--) {
     const st = history[i]?.status
     if (st === 'complete' || st === 'failed' || st === 'cancelled') return st
@@ -84,42 +83,23 @@ function getConvoStatus(history) {
   const lastMsg = history[history.length - 1]
   const lastRole = lastMsg?.Role || lastMsg?.role || ''
 
-  // A system message as the last entry signals the conversation has been
-  // summarised / archived / completed.
   if (lastRole === 'system') return 'complete'
 
-  // If the last message is from the agent and it has no pending/unanswered
-  // tool calls (i.e. ToolCalls without matching ToolResult), the agent has
-  // finished its turn and the conversation is complete.
   if (lastRole === 'agent') {
     const toolCalls = lastMsg?.ToolCalls || []
     const toolResults = lastMsg?.ToolResult || []
-    // If there are tool calls but fewer results than calls, the agent is
-    // still waiting — conversation is active.
     if (toolCalls.length > 0 && toolResults.length < toolCalls.length) return 'active'
-    // Agent produced a final response (no outstanding tool calls).
     return 'complete'
   }
 
-  // For any other role (user, tool, tool_result, etc.) the conversation
-  // is still in progress — the agent hasn't had its final say yet.
   return 'active'
 }
 
-/**
- * Extract the authoritative session status from a ConvoState object.
- * Returns the status string (active/complete/failed/cancelled) or null
- * if no session status is available in the ConvoState data.
- */
 function getConvoStateStatus(convoState) {
   if (!convoState || typeof convoState !== 'object') return null
 
-  // The ConvoState response is typically keyed by node IP, e.g.:
-  // { "10.255.255.254": { "agent": { ... }, "first_session": { ... }, "last_session": { ... } } }
-  // Try each value for session data, or check top-level for unwrapped structure.
   const VALID_STATUSES = new Set(['active', 'complete', 'failed', 'cancelled'])
 
-  // Check each key — one of them is the node-level wrapper containing sessions
   for (const key of Object.keys(convoState)) {
     const val = convoState[key]
     if (val && typeof val === 'object') {
@@ -132,7 +112,6 @@ function getConvoStateStatus(convoState) {
     }
   }
 
-  // Also check for unwrapped structure (convoState directly has sessions)
   if (convoState.last_session?.status && VALID_STATUSES.has(convoState.last_session.status)) {
     return convoState.last_session.status
   }
@@ -143,20 +122,9 @@ function getConvoStateStatus(convoState) {
   return null
 }
 
-/**
- * Derive conversation status from ConvoState as the primary source of truth,
- * falling back to history-based heuristics when ConvoState data is unavailable.
- *
- * Priority:
- * 1. ConvoState's last_session.status (most recent session)
- * 2. ConvoState's first_session.status (initial session)
- * 3. Legacy heuristic from history
- */
 function deriveConvoStatus(convoState, history) {
   const sessionStatus = getConvoStateStatus(convoState)
   if (sessionStatus) return sessionStatus
-
-  // Fallback to history-based heuristic
   return getConvoStatus(history)
 }
 
@@ -175,9 +143,16 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const [engines, setEngines] = useState([])
-  const [selectedEngine, setSelectedEngine] = useState("")
+  const [selectedEngine, setSelectedEngine] = useState('')
   const [currentDriver, setCurrentDriver] = useState('')
   const [currentEngine, setCurrentEngine] = useState('')
+  const [agents, setAgents] = useState([])
+  const [agentMetadata, setAgentMetadata] = useState({})
+
+  // Agent picker state
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  const [pendingTurn, setPendingTurn] = useState(null)
+
   const timerRef = useRef(null)
   const convoStateTimerRef = useRef(null)
   const idleTimerRef = useRef(null)
@@ -201,21 +176,14 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           msgs = Array.isArray(vals[0]) ? vals[0] : []
         }
         setHistory(msgs)
-        // Re-derive status with current convoState and new history.
-        // Use convoStateRef to avoid stale closures (fetchHistory is stable).
         setConvoStatus(deriveConvoStatus(convoStateRef.current, msgs))
       })
       .catch((err) => setHistoryError(err.message))
       .finally(() => setHistoryLoading(false))
   }, [convoId, creds])
 
-  // Ref to track latest convoState for use in fetchHistory callback
   const convoStateRef = useRef(null)
 
-  // Fetch ConvoState (for status and engine/driver info).
-  // IMPORTANT: Does NOT depend on `history` — doing so would cause an infinite
-  // loop because fetchHistory updates history, which would recreate this
-  // callback, which would re-trigger the initial-load useEffect.
   const fetchConvoState = useCallback(() => {
     if (!convoId || !creds) return
 
@@ -226,23 +194,16 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
         setConvoState(data)
         convoStateRef.current = data
 
-        // Derive status from ConvoState session data only (no history fallback
-        // here — fetchHistory already handles that path).
         const sessionStatus = getConvoStateStatus(data)
         if (sessionStatus) {
           setConvoStatus(sessionStatus)
         }
 
-        // Extract engine/driver from convoState (same logic as before)
         const keys = Object.keys(data)
-
-        // Find the key that looks like an IP address (contains dots)
-        // or just use the first key if there's only one
         let nodeKey = null
         if (keys.length === 1) {
           nodeKey = keys[0]
         } else {
-          // Find key that looks like an IP address
           nodeKey = keys.find(k => k.includes('.')) || keys[0]
         }
 
@@ -251,9 +212,8 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
         const convoData = data[nodeKey]
         const agent = convoData?.agent || {}
 
-        // Extract Driver and Engine (note: CAPITALIZED in API response)
-        const driver = agent?.Driver || agent?.driver || ""
-        const engine = agent?.Engine || agent?.engine || ""
+        const driver = agent?.Driver || agent?.driver || ''
+        const engine = agent?.Engine || agent?.engine || ''
 
         if (driver && engine) {
           const engineValue = `${driver}:${engine}`
@@ -262,14 +222,18 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           setCurrentEngine(engine)
         }
       })
-      .catch((err) => {
-        // Silently fail
-      })
+      .catch(() => {})
   }, [convoId, creds])
 
   // initial load
   useEffect(() => {
-    if (!convoId) { setHistory([]); setConvoState(null); convoStateRef.current = null; setConvoStatus('unknown'); return }
+    if (!convoId) {
+      setHistory([])
+      setConvoState(null)
+      convoStateRef.current = null
+      setConvoStatus('unknown')
+      return
+    }
     fetchHistory(false)
     fetchConvoState()
   }, [fetchHistory, fetchConvoState])
@@ -296,7 +260,6 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   }, [fetchHistory, isActive, isPaused, isIdle])
 
   // auto-poll convoState when active, not paused, not idle
-  // (less frequent than history polling, just to keep status fresh)
   useEffect(() => {
     if (!isActive || isPaused || isIdle) {
       clearInterval(convoStateTimerRef.current)
@@ -307,7 +270,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     return () => clearInterval(convoStateTimerRef.current)
   }, [fetchConvoState, isActive, isPaused, isIdle])
 
-  // final refresh when conversation transitions from active → inactive
+  // final refresh when conversation transitions from active -> inactive
   useEffect(() => {
     if (!isActive && wasActiveRef.current) {
       fetchHistory(false)
@@ -365,7 +328,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     listEngines(creds)
       .then((data) => {
         let list = data
-        if (data && !Array.isArray(data) && typeof data === "object") {
+        if (data && !Array.isArray(data) && typeof data === 'object') {
           const vals = Object.values(data)
           list = vals.find(Array.isArray) ?? []
         }
@@ -375,6 +338,33 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       .catch(() => {})
   }, [creds])
 
+  // fetch agent list once on mount
+  useEffect(() => {
+    listAgents(creds)
+      .then((data) => {
+        let agentsList = []
+        let metadata = {}
+        if (data && !Array.isArray(data) && typeof data === 'object') {
+          const vals = Object.values(data)
+          agentsList = vals.find(Array.isArray) ?? []
+          // If the API returns detailed agent objects, extract metadata
+          if (Array.isArray(vals[0]) && vals[0].length > 0 && typeof vals[0][0] === 'object') {
+            for (const agent of vals[0]) {
+              if (agent && agent.name) {
+                metadata[agent.name] = {
+                  engine: agent.Engine || agent.engine,
+                  driver: agent.Driver || agent.driver,
+                }
+              }
+            }
+          }
+        }
+        if (!Array.isArray(agentsList)) agentsList = []
+        setAgents(agentsList)
+        setAgentMetadata(metadata)
+      })
+      .catch(() => {})
+  }, [creds])
 
   const handleNavigateToSubAgent = useCallback((subConvoId) => {
     if (onNavigateToConvo) {
@@ -386,27 +376,74 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     if (!text || !convoId) return
     setIsSendingTurn(true)
 
-    // Only send if different from current
     const finalDriver = driver && driver !== currentDriver ? driver : undefined
     const finalEngine = engine && engine !== currentEngine ? engine : undefined
 
+    // Get last known agent for this conversation
+    const lastAgent = getLastKnownAgent(convoId, convoState)
+
     try {
-      await startTurn(creds, convoId, text, finalEngine, finalDriver)
+      const result = await startTurn(creds, convoId, text, finalEngine, finalDriver, lastAgent, false)
+
+      // Check for conversation_expired error
+      if (result && result.ok === false && result.error === 'conversation_expired') {
+        // Store pending turn context
+        setPendingTurn({ text, engine: finalEngine, driver: finalDriver })
+        setShowAgentPicker(true)
+        return
+      }
+
+      // Success - update last known agent
+      if (result && result.ok && result.data?.agent) {
+        setLastKnownAgent(convoId, result.data.agent)
+      } else if (lastAgent) {
+        setLastKnownAgent(convoId, lastAgent)
+      }
+
       // Optimistically set status to 'active' so polling restarts immediately
       setConvoStatus('active')
-      // Fetch authoritative status from backend
       fetchConvoState()
-      // Refresh history with the new user message
       fetchHistory(false)
     } catch (err) {
       setHistoryError(err.message)
-      // Ensure correct status is reflected on error
       fetchConvoState()
       fetchHistory(false)
     } finally {
       setIsSendingTurn(false)
     }
-  }, [creds, convoId, fetchHistory, fetchConvoState, setConvoStatus, currentDriver, currentEngine])
+  }, [creds, convoId, fetchHistory, fetchConvoState, setConvoStatus, currentDriver, currentEngine, convoState])
+
+  const handleAgentPick = useCallback(async (selectedAgent) => {
+    setShowAgentPicker(false)
+    const pending = pendingTurn
+    setPendingTurn(null)
+
+    if (!pending || !convoId) return
+
+    setIsSendingTurn(true)
+    try {
+      const result = await startTurn(creds, convoId, pending.text, pending.engine, pending.driver, selectedAgent, true)
+
+      if (result && result.ok) {
+        setLastKnownAgent(convoId, selectedAgent)
+        setConvoStatus('active')
+        fetchConvoState()
+        fetchHistory(false)
+      } else {
+        setHistoryError(result?.message || 'Failed to revive conversation')
+      }
+    } catch (err) {
+      setHistoryError(err.message)
+    } finally {
+      setIsSendingTurn(false)
+    }
+  }, [creds, convoId, pendingTurn, fetchConvoState, fetchHistory, setConvoStatus])
+
+  const handleAgentPickerCancel = useCallback(() => {
+    setShowAgentPicker(false)
+    setPendingTurn(null)
+    setHistoryError('Conversation expired. Select an agent to revive it.')
+  }, [])
 
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
@@ -473,7 +510,9 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           <div style={s.err}>{historyError}</div>
         )}
         {!historyLoading && !historyError && history.length === 0 && (
-          <div style={s.empty}>No messages in history</div>
+          <div style={s.empty}>
+            {convoState && isActive ? 'Preparing the system prompt…' : 'No messages in history'}
+          </div>
         )}
         {history.map((msg, i) => {
           const role = msg.Role || msg.role || ''
@@ -505,6 +544,17 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
             />
           </div>
         </>
+      )}
+
+      {/* Agent Picker Modal */}
+      {showAgentPicker && (
+        <AgentPickerModal
+          agents={agents}
+          agentMetadata={agentMetadata}
+          onSelect={handleAgentPick}
+          onCancel={handleAgentPickerCancel}
+          title="Conversation expired. Select an agent to revive it."
+        />
       )}
     </div>
   )

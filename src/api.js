@@ -46,6 +46,7 @@ async function apiFetch(path, creds, options = {}) {
     return ''
   }
 
+  // Handle 401/403 as before (throw)
   if (res.status === 401) {
     const message = await readErrorMessage()
     const err = new Error(message || 'Unauthorized')
@@ -58,13 +59,9 @@ async function apiFetch(path, creds, options = {}) {
     err.status = 403
     throw err
   }
-  if (!res.ok) {
-    const message = await readErrorMessage()
-    const err = new Error(message || `HTTP ${res.status}`)
-    err.status = res.status
-    throw err
-  }
 
+  // For all other responses (including 200 with error body), parse JSON
+  // and return the parsed response. Callers should check response.ok/error.
   const rotatedJWT = res.headers.get(REFRESHED_JWT_HEADER)
   if (rotatedJWT && creds?.type === 'token' && creds.token !== rotatedJWT && onTokenRotated) {
     onTokenRotated(rotatedJWT, creds)
@@ -310,10 +307,17 @@ export async function cancelConvo(creds, convoID) {
 
 // POST /api/convos/:convoID/turn — start a new chat turn from the UI.
 // The turn runs asynchronously on the backend; the API returns immediately.
-export async function startTurn(creds, convoID, text, engine, driver) {
+// Supports agent and agent_override for conversation recovery.
+export async function startTurn(creds, convoID, text, engine, driver, agent, agentOverride) {
+  const body = { text }
+  if (engine) body.engine = engine
+  if (driver) body.driver = driver
+  if (agent) body.agent = agent
+  if (agentOverride) body.agent_override = true
+
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/turn`, creds, {
     method: 'POST',
-    body: JSON.stringify({ text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -325,7 +329,6 @@ export async function startNewConvo(creds, agentName, text, engine, driver) {
     body: JSON.stringify({ agent: agentName, text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
   })
 }
-
 
 // GET /api/agents — list configured agent names for the agent-selection dropdown.
 export async function listAgents(creds) {
