@@ -10,6 +10,8 @@ import {
   truncateID,
   markdownCSS,
 } from './MessageBubble'
+import AgentPickerModal from './AgentPickerModal'
+import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
@@ -67,9 +69,9 @@ const s = {
   colMeta: { fontSize: 12, color: '#64748b' },
   scrollArea: { flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column' },
   scrollContent: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
-  loadMoreContainer: { 
+  loadMoreContainer: {
     padding: '8px 8px 0 8px',
-    textAlign: 'center', 
+    textAlign: 'center',
     marginTop: 0,
     flexShrink: 0,
     borderTop: '1px solid #2d3148',
@@ -451,6 +453,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const wasIdleRef = useRef(false)
   const wasHistoryIdleRef = useRef(false)
 
+  // Agent picker state for recovery
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  const [pendingTurn, setPendingTurn] = useState(null)
+  const [agentMetadata, setAgentMetadata] = useState({})
+
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
     const isFetchMore = mode === 'more'
@@ -475,13 +482,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       if (isFetchMore) {
         // Compute new consumedMarkers based on current state and response
         const newConsumed = new Set(consumedMarkersRef.current)
-        
+
         // If no new conversations were loaded and we have an asOf,
         // mark this asOf as consumed (it's an empty time block)
         if (incoming.length === 0 && asOf) {
           newConsumed.add(asOf)
         }
-        
+
         // Find the oldest candidate marker that is:
         // 1. Strictly older than the current asOf
         // 2. Not already consumed
@@ -491,7 +498,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           const candidates = sortedMarkers.filter(
             (m) => (!newConsumed.has(m)) && m < asOf
           )
-          
+
           if (candidates.length > 0) {
             // Use the oldest (smallest) candidate
             const next = candidates[0]
@@ -501,7 +508,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             newOldestAsOf = ''
           }
         }
-        
+
         // Update both states (not nested)
         setConsumedMarkers(newConsumed)
         setOldestAsOf(newOldestAsOf)
@@ -549,7 +556,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       clearInterval(timerRef.current)
       return
     }
-    
+
     timerRef.current = setInterval(() => fetchConvos('poll'), POLL_INTERVAL_MS)
     return () => clearInterval(timerRef.current)
   }, [fetchConvos, isPaused, isIdle])
@@ -619,8 +626,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         const agent = convoData?.agent || {}
 
         // Extract Driver and Engine (note: CAPITALIZED in API response)
-        const driver = agent?.Driver || agent?.driver || ""
-        const engine = agent?.Engine || agent?.engine || ""
+        const driver = agent?.Driver || agent?.driver || ''
+        const engine = agent?.Engine || agent?.engine || ''
 
         if (driver && engine) {
           const engineValue = `${driver}:${engine}`
@@ -631,7 +638,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       })
       .catch(() => {})
   }, [selectedID, creds])
-
 
   const handleCancelConvo = useCallback(async (convoID) => {
     setCancellingID(convoID)
@@ -653,12 +659,34 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     const finalDriver = driver && driver !== currentDriver ? driver : undefined
     const finalEngine = engine && engine !== currentEngine ? engine : undefined
 
+    // Get last known agent for this conversation
+    const lastAgent = getLastKnownAgent(selectedID, null)
+
     try {
-      await startTurn(creds, selectedID, text, finalEngine, finalDriver)
+      const result = await startTurn(creds, selectedID, text, finalEngine, finalDriver, lastAgent, false)
+
+      // Check for conversation_expired error
+      if (result && result.ok === false && result.error === 'conversation_expired') {
+        // Store pending turn context
+        setPendingTurn({ text, engine: finalEngine, driver: finalDriver })
+        setShowAgentPicker(true)
+        return
+      }
+
+      // Success - update last known agent
+      if (result && result.ok && result.data?.agent) {
+        setLastKnownAgent(selectedID, result.data.agent)
+      } else if (lastAgent) {
+        setLastKnownAgent(selectedID, lastAgent)
+      }
+
+      // Optimistically set status to 'active' so polling restarts immediately
       fetchConvos('poll')
       fetchHistory(false)
     } catch (err) {
       setError(err.message)
+      fetchConvos('poll')
+      fetchHistory(false)
     } finally {
       setIsSendingTurn(false)
     }
@@ -712,6 +740,38 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
   }, [inputAreaHeight])
+
+  // Handle agent selection from picker (recovery flow)
+  const handleAgentPick = useCallback(async (selectedAgent) => {
+    setShowAgentPicker(false)
+    const pending = pendingTurn
+    setPendingTurn(null)
+
+    if (!pending || !selectedID) return
+
+    setIsSendingTurn(true)
+    try {
+      const result = await startTurn(creds, selectedID, pending.text, pending.engine, pending.driver, selectedAgent, true)
+
+      if (result && result.ok) {
+        setLastKnownAgent(selectedID, selectedAgent)
+        fetchConvos('poll')
+        fetchHistory(false)
+      } else {
+        setHistoryError(result?.message || 'Failed to revive conversation')
+      }
+    } catch (err) {
+      setHistoryError(err.message)
+    } finally {
+      setIsSendingTurn(false)
+    }
+  }, [creds, selectedID, pendingTurn, fetchConvos, fetchHistory])
+
+  const handleAgentPickerCancel = useCallback(() => {
+    setShowAgentPicker(false)
+    setPendingTurn(null)
+    setHistoryError('Conversation expired. Select an agent to revive it.')
+  }, [])
 
   // fetch agent list once on mount
   useEffect(() => {
@@ -847,7 +907,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     const handleActivity = () => {
       const now = Date.now()
       const timeSinceLastActivity = now - lastActivityTimeRef.current
-      
+
       // Only reset timer if enough time has passed since last activity
       if (timeSinceLastActivity > ACTIVITY_THROTTLE_MS) {
         lastActivityTimeRef.current = now
@@ -1047,6 +1107,14 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           </div>
         )}
       </div>
+      {showAgentPicker && (
+        <AgentPickerModal
+          agents={agents}
+          agentMetadata={agentMetadata}
+          onSelect={handleAgentPick}
+          onCancel={handleAgentPickerCancel}
+        />
+      )}
     </div>
   )
 }

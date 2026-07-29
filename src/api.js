@@ -60,14 +60,27 @@ async function apiFetch(path, creds, options = {}) {
     throw err
   }
 
-  // For all other responses (including 200 with error body), parse JSON
-  // and return the parsed response. Callers should check response.ok/error.
+  // For non-2xx responses, throw as before (other callers use try/catch)
+  if (!res.ok) {
+    const message = await readErrorMessage()
+    const err = new Error(message || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+
+  // 2xx response - check for special case: 200 with conversation_expired error body
+  // This is only expected for startTurn during recovery flow
+  const data = await res.json()
+  if (res.status === 200 && data && typeof data === 'object' && data.error === 'conversation_expired') {
+    return { ok: false, error: 'conversation_expired', message: data.message }
+  }
+
   const rotatedJWT = res.headers.get(REFRESHED_JWT_HEADER)
   if (rotatedJWT && creds?.type === 'token' && creds.token !== rotatedJWT && onTokenRotated) {
     onTokenRotated(rotatedJWT, creds)
   }
 
-  return res.json()
+  return data
 }
 
 function unwrapPodLogChunkEnvelope(payload) {
