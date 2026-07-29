@@ -35,12 +35,20 @@ async function apiFetch(path, creds, options = {}) {
 
   const readErrorMessage = async () => {
     const body = await res.json().catch(() => ({}))
-    if (body && typeof body === 'object') {
-      if (typeof body.error === 'string' && body.error.trim()) {
-        return body.error.trim()
+    // Unwrap node IP envelope if present: { "10.255.255.254": { error: "...", message: "..." } }
+    let actualBody = body
+    if (body && typeof body === 'object' && !Array.isArray(body) && !body.error && !body.message && Object.keys(body).length === 1) {
+      const key = Object.keys(body)[0]
+      if (typeof key === 'string' && key.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        actualBody = body[key]
       }
-      if (typeof body.message === 'string' && body.message.trim()) {
-        return body.message.trim()
+    }
+    if (actualBody && typeof actualBody === 'object') {
+      if (typeof actualBody.error === 'string' && actualBody.error.trim()) {
+        return actualBody.error.trim()
+      }
+      if (typeof actualBody.message === 'string' && actualBody.message.trim()) {
+        return actualBody.message.trim()
       }
     }
     return ''

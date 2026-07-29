@@ -759,12 +759,17 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     try {
       const result = await startTurn(creds, selectedID, pending.text, pending.engine, pending.driver, selectedAgent, true)
 
-      if (result && result.ok) {
+      // Unwrap node IP envelope if present (API may return { "10.255.255.254": { ...result } })
+      const unwrappedResult = (result && !Array.isArray(result) && typeof result === "object" && !result.ok && !result.error && !result.data)
+        ? Object.values(result).find((v) => v && typeof v === "object" && (v.ok !== undefined || v.error !== undefined)) ?? result
+        : result;
+
+      if (unwrappedResult && unwrappedResult.ok) {
         setLastKnownAgent(selectedID, selectedAgent)
         fetchConvos('poll')
         fetchHistory(false)
       } else {
-        setHistoryError(result?.message || 'Failed to revive conversation')
+        setHistoryError(unwrappedResult?.message || 'Failed to revive conversation')
       }
     } catch (err) {
       setHistoryError(err.message)
