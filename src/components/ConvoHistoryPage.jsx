@@ -385,8 +385,14 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     try {
       const result = await startTurn(creds, convoId, text, finalEngine, finalDriver, lastAgent, false)
 
+      // Unwrap node IP envelope if present (API may return { "10.255.255.254": { ...result } })
+      const unwrappedResult = (result && !Array.isArray(result) && typeof result === "object" && !result.ok && !result.error && !result.data)
+        ? Object.values(result).find((v) => v && typeof v === "object" && (v.ok !== undefined || v.error !== undefined)) ?? result
+        : result;
+
+
       // Check for conversation_expired error
-      if (result && result.ok === false && result.error === 'conversation_expired') {
+      if (unwrappedResult && unwrappedResult.ok === false && unwrappedResult.error === 'conversation_expired') {
         // Store pending turn context
         setPendingTurn({ text, engine: finalEngine, driver: finalDriver })
         setShowAgentPicker(true)
@@ -394,8 +400,8 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       }
 
       // Success - update last known agent
-      if (result && result.ok && result.data?.agent) {
-        setLastKnownAgent(convoId, result.data.agent)
+      if (unwrappedResult && unwrappedResult.ok && unwrappedResult.data?.agent) {
+        setLastKnownAgent(convoId, unwrappedResult.data.agent)
       } else if (lastAgent) {
         setLastKnownAgent(convoId, lastAgent)
       }
