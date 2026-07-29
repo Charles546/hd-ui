@@ -35,17 +35,26 @@ async function apiFetch(path, creds, options = {}) {
 
   const readErrorMessage = async () => {
     const body = await res.json().catch(() => ({}))
-    if (body && typeof body === 'object') {
-      if (typeof body.error === 'string' && body.error.trim()) {
-        return body.error.trim()
+    // Unwrap node IP envelope if present: { "10.255.255.254": { error: "...", message: "..." } }
+    let actualBody = body
+    if (body && typeof body === 'object' && !Array.isArray(body) && !body.error && !body.message && Object.keys(body).length === 1) {
+      const key = Object.keys(body)[0]
+      if (typeof key === 'string' && key.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        actualBody = body[key]
       }
-      if (typeof body.message === 'string' && body.message.trim()) {
-        return body.message.trim()
+    }
+    if (actualBody && typeof actualBody === 'object') {
+      if (typeof actualBody.error === 'string' && actualBody.error.trim()) {
+        return actualBody.error.trim()
+      }
+      if (typeof actualBody.message === 'string' && actualBody.message.trim()) {
+        return actualBody.message.trim()
       }
     }
     return ''
   }
 
+  // Handle 401/403 as before (throw)
   if (res.status === 401) {
     const message = await readErrorMessage()
     const err = new Error(message || 'Unauthorized')
@@ -58,6 +67,8 @@ async function apiFetch(path, creds, options = {}) {
     err.status = 403
     throw err
   }
+
+  // For non-2xx responses, throw as before (other callers use try/catch)
   if (!res.ok) {
     const message = await readErrorMessage()
     const err = new Error(message || `HTTP ${res.status}`)
@@ -65,12 +76,19 @@ async function apiFetch(path, creds, options = {}) {
     throw err
   }
 
+  // 2xx response - check for special case: 200 with conversation_expired error body
+  // This is only expected for startTurn during recovery flow
+  const data = await res.json()
+  if (res.status === 200 && data && typeof data === 'object' && data.error === 'conversation_expired') {
+    return { ok: false, error: 'conversation_expired', message: data.message }
+  }
+
   const rotatedJWT = res.headers.get(REFRESHED_JWT_HEADER)
   if (rotatedJWT && creds?.type === 'token' && creds.token !== rotatedJWT && onTokenRotated) {
     onTokenRotated(rotatedJWT, creds)
   }
 
-  return res.json()
+  return data
 }
 
 function unwrapPodLogChunkEnvelope(payload) {
@@ -310,10 +328,17 @@ export async function cancelConvo(creds, convoID) {
 
 // POST /api/convos/:convoID/turn — start a new chat turn from the UI.
 // The turn runs asynchronously on the backend; the API returns immediately.
-export async function startTurn(creds, convoID, text, engine, driver) {
+// Supports agent and agent_override for conversation recovery.
+export async function startTurn(creds, convoID, text, engine, driver, agent, agentOverride) {
+  const body = { text }
+  if (engine) body.engine = engine
+  if (driver) body.driver = driver
+  if (agent) body.agent = agent
+  if (agentOverride) body.agent_override = true
+
   return apiFetch(`/convos/${encodeURIComponent(convoID)}/turn`, creds, {
     method: 'POST',
-    body: JSON.stringify({ text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -325,7 +350,6 @@ export async function startNewConvo(creds, agentName, text, engine, driver) {
     body: JSON.stringify({ agent: agentName, text, ...(engine ? { engine } : {}), ...(driver ? { driver } : {}) }),
   })
 }
-
 
 // GET /api/agents — list configured agent names for the agent-selection dropdown.
 export async function listAgents(creds) {
