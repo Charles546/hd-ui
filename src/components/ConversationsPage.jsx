@@ -12,6 +12,7 @@ import {
 } from './MessageBubble'
 import AgentPickerModal from './AgentPickerModal'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
+import useMediaQuery from '../utils/useMediaQuery'
 
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
@@ -29,10 +30,21 @@ const STATUS_COLOR = {
   cancelled: '#f97316',
 }
 
+const MOBILE_BREAKPOINT = '(max-width: 768px)'
+const DRAWER_Z_INDEX = 200
+const BACKDROP_Z_INDEX = 100
+
 const s = {
   page: {
     display: 'flex',
     gap: 16,
+    height: 'calc(100vh - 130px)',
+    minHeight: 400,
+  },
+  pageMobile: {
+    position: 'relative',
+    display: 'flex',
+    gap: 0,
     height: 'calc(100vh - 130px)',
     minHeight: 400,
   },
@@ -46,6 +58,37 @@ const s = {
     border: '1px solid #2d3148',
     background: '#141824',
     overflow: 'hidden',
+  },
+  leftColMobile: (isOpen) => ({
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 'min(80vw, 320px)',
+    zIndex: DRAWER_Z_INDEX,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    borderRadius: '0 10px 10px 0',
+    border: '1px solid #2d3148',
+    background: '#141824',
+    overflow: 'hidden',
+    transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+    visibility: isOpen ? 'visible' : 'hidden',
+    transition: isOpen
+      ? 'transform 0.25s ease, visibility 0s linear 0s'
+      : 'transform 0.25s ease, visibility 0s linear 0.25s',
+    boxShadow: isOpen ? '0 0 24px rgba(0,0,0,0.5)' : 'none',
+  }),
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    background: 'rgba(0,0,0,0.55)',
+    zIndex: BACKDROP_Z_INDEX,
+    borderRadius: 10,
   },
   rightCol: {
     flex: 1,
@@ -63,6 +106,58 @@ const s = {
     alignItems: 'center',
     justifyContent: 'space-between',
     background: '#11141c',
+    flexShrink: 0,
+  },
+  mobileColHeader: {
+    padding: '12px 12px',
+    borderBottom: '1px solid #2d3148',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    background: '#11141c',
+    flexShrink: 0,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  colTitleWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+    flex: '1 1 auto',
+  },
+  colControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mobileColControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  hamburger: {
+    background: '#1e2438',
+    border: '1px solid #2d3148',
+    color: '#e2e8f0',
+    fontSize: 16,
+    lineHeight: 1,
+    padding: '5px 9px',
+    borderRadius: 6,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  drawerCloseBtn: {
+    background: 'none',
+    border: '1px solid #2d3148',
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 1,
+    padding: '5px 8px',
+    borderRadius: 6,
+    cursor: 'pointer',
     flexShrink: 0,
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
@@ -446,12 +541,15 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [isIdle, setIsIdle] = useState(false)
   const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
   const wasActiveRef = useRef(false)
   const wasIdleRef = useRef(false)
   const wasHistoryIdleRef = useRef(false)
+
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
 
   // Agent picker state for recovery
   const [showAgentPicker, setShowAgentPicker] = useState(false)
@@ -597,6 +695,28 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       setSelectedID(initialConvoId)
     }
   }, [initialConvoId])
+
+  // Auto-open the drawer on mobile when no conversation is selected; close it
+  // whenever we leave the mobile layout.
+  useEffect(() => {
+    if (!isMobile) {
+      setIsDrawerOpen(false)
+      return
+    }
+    if (!selectedID && !isNewConvo) {
+      setIsDrawerOpen(true)
+    }
+  }, [isMobile, selectedID, isNewConvo])
+
+  // Escape closes the drawer on mobile.
+  useEffect(() => {
+    if (!isMobile || !isDrawerOpen) return undefined
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsDrawerOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isMobile, isDrawerOpen])
   // Fetch convo state to get current engine/driver when conversation changes
   useEffect(() => {
     if (!selectedID || !creds) return
@@ -709,7 +829,10 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         : raw
       setIsNewConvo(false)
       await fetchConvos('poll')
-      if (result?.convo_id) setSelectedID(result.convo_id)
+      if (result?.convo_id) {
+        setSelectedID(result.convo_id)
+        setIsDrawerOpen(false)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -721,11 +844,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsNewConvo(true)
     setSelectedID(null)
     setHistory([])
+    setIsDrawerOpen(false)
   }, [])
 
   const handleNavigateToSubAgent = useCallback((convoId) => {
     setSelectedID(convoId)
     setIsNewConvo(false)
+    setIsDrawerOpen(false)
   }, [])
 
   const handleDividerMouseDown = useCallback((e) => {
@@ -746,6 +871,12 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
   }, [inputAreaHeight])
+
+  const handleSelectConvo = useCallback((convoId) => {
+    setIsNewConvo(false)
+    setSelectedID(convoId)
+    setIsDrawerOpen(false)
+  }, [])
 
   // Handle agent selection from picker (recovery flow)
   const handleAgentPick = useCallback(async (selectedAgent) => {
@@ -946,13 +1077,28 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   }, [isPaused])
 
   return (
-    <div style={s.page}>
+    <div style={isMobile ? s.pageMobile : s.page}>
       <style>{markdownCSS}</style>
-      {/* Left column — conversation list */}
-      <div style={s.leftCol}>
+      {/* Left column — conversation list (static on desktop, overlay drawer on mobile) */}
+      <div
+        id="conversation-list-panel"
+        style={isMobile ? s.leftColMobile(isDrawerOpen) : s.leftCol}
+        role="complementary"
+        aria-label="Conversation list"
+        aria-hidden={isMobile ? !isDrawerOpen : undefined}
+      >
         <div style={s.colHeader}>
           <span style={s.colTitle}>Conversations</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMobile && (
+              <button
+                style={s.drawerCloseBtn}
+                onClick={() => setIsDrawerOpen(false)}
+                aria-label="Close conversation list"
+              >
+                ✕
+              </button>
+            )}
             {lastRefreshedAt && (
               <span style={s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
             )}
@@ -986,14 +1132,16 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         <div style={s.scrollArea}>
           <div style={s.scrollContent}>
             {convos.length === 0 && !loading && (
-              <div style={s.empty}>No conversations yet</div>
+              <div style={s.empty}>
+                {isMobile ? 'No conversations yet — start one with “+ New”' : 'No conversations yet'}
+              </div>
             )}
             {filteredTreeItems.map(({ convo: c, children }) => (
               <div key={c.convo_id}>
                 <ConvoCard
                   convo={c}
                   selected={c.convo_id === selectedID}
-                  onClick={() => { setIsNewConvo(false); setSelectedID(c.convo_id === selectedID ? null : c.convo_id) }}
+                  onClick={() => handleSelectConvo(c.convo_id === selectedID ? null : c.convo_id)}
                   onCancel={handleCancelConvo}
                   cancelling={cancellingID === c.convo_id}
                 />
@@ -1004,7 +1152,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
                         key={child.convo_id}
                         convo={child}
                         selected={child.convo_id === selectedID}
-                        onClick={() => { setIsNewConvo(false); setSelectedID(child.convo_id === selectedID ? null : child.convo_id) }}
+                        onClick={() => handleSelectConvo(child.convo_id === selectedID ? null : child.convo_id)}
                         onCancel={handleCancelConvo}
                         cancelling={cancellingID === child.convo_id}
                       />
@@ -1024,17 +1172,40 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         </div>
       </div>
 
+      {isMobile && isDrawerOpen && (
+        <div
+          style={s.backdrop}
+          onClick={() => setIsDrawerOpen(false)}
+          role="presentation"
+          aria-hidden="true"
+          data-testid="conversation-drawer-backdrop"
+        />
+      )}
+
       {/* Right column — history */}
       <div style={s.rightCol}>
-        <div style={s.colHeader}>
-          <span style={s.colTitle}>
-            {isNewConvo
-              ? 'New Conversation'
-              : selectedConvo
-                ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
-                : 'History'}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={isMobile ? s.mobileColHeader : s.colHeader}>
+          <div style={s.colTitleWrap}>
+            {isMobile && (
+              <button
+                style={s.hamburger}
+                onClick={() => setIsDrawerOpen(true)}
+                aria-label="Open conversation list"
+                aria-expanded={isDrawerOpen}
+                aria-controls="conversation-list-panel"
+              >
+                ☰
+              </button>
+            )}
+            <span style={s.colTitle}>
+              {isNewConvo
+                ? 'New Conversation'
+                : selectedConvo
+                  ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                  : 'History'}
+            </span>
+          </div>
+          <div style={isMobile ? s.mobileColControls : s.colControls}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
               <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
               <span>Show tools</span>
@@ -1060,7 +1231,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             <div style={s.empty}>Select an agent and type your first message below</div>
           )}
           {!isNewConvo && !selectedID && (
-            <div style={s.empty}>Select a conversation to view its history</div>
+            <div style={s.empty}>
+              {isMobile ? 'Open the conversation list to pick one' : 'Select a conversation to view its history'}
+            </div>
           )}
           {!isNewConvo && selectedID && historyLoading && (
             <div style={s.empty}>Loading…</div>

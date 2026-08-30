@@ -271,3 +271,194 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
     })
   })
 })
+
+describe('ConversationsPage - Mobile Drawer', () => {
+  const originalMatchMedia = window.matchMedia
+
+  // jsdom does not implement window.matchMedia. Install a controllable mock so
+  // the useMediaQuery hook reports a mobile viewport when matches=true.
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() {
+            return matches
+          },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => {
+            if (type === 'change') listeners.add(listener)
+          },
+          removeEventListener: (type, listener) => {
+            if (type === 'change') listeners.delete(listener)
+          },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListConvos.mockReset()
+    mockListConvos.mockResolvedValue([])
+    mockGetConvoHistory.mockReset()
+    mockGetConvoHistory.mockResolvedValue([])
+    mockGetConvoState.mockReset()
+    mockGetConvoState.mockResolvedValue(null)
+    mockCancelConvo.mockReset()
+    mockCancelConvo.mockResolvedValue({})
+    mockStartTurn.mockReset()
+    mockStartNewConvo.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue(['agent1', 'agent2'])
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue(['openai:gpt-4o'])
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  function getPanel() {
+    return document.getElementById('conversation-list-panel')
+  }
+
+  it('auto-opens the drawer when no conversation is selected on mobile', async () => {
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Hamburger lives in the right column header on mobile.
+    expect(screen.getByRole('button', { name: 'Open conversation list' })).toBeInTheDocument()
+
+    // Drawer is open with backdrop visible.
+    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
+    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+  })
+
+  it('keeps the drawer closed when a conversation is selected and opens it via the hamburger', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Drawer closed: hidden from accessibility tree, no backdrop.
+    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+
+    // Hamburger toggles the drawer open.
+    fireEvent.click(screen.getByRole('button', { name: 'Open conversation list' }))
+    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
+    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+
+    // Hamburger reflects expanded state.
+    expect(screen.getByRole('button', { name: 'Open conversation list' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('closes the drawer when the backdrop is tapped', async () => {
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('conversation-drawer-backdrop'))
+
+    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('closes the drawer when Escape is pressed', async () => {
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('selecting a conversation closes the drawer and reveals that conversation', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('convo-123'))
+
+    // Drawer closed after selection.
+    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+
+    // Conversation revealed in the right column.
+    await waitFor(() => {
+      expect(screen.getByText(/History —/)).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+  })
+
+  it('going New switches to the new-convo view and closes the drawer', async () => {
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '+ New' }))
+
+    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+    expect(screen.getByText('New Conversation')).toBeInTheDocument()
+  })
+
+  it('keeps the static two-column layout on desktop with no drawer controls', async () => {
+    installMatchMedia(false)
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Panel is not treated as a hidden drawer on desktop.
+    expect(getPanel().getAttribute('aria-hidden')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+  })
+})
