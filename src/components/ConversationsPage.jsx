@@ -138,6 +138,36 @@ const s = {
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
   },
+  drawerHeaderMobile: {
+    padding: '10px 12px',
+    borderBottom: '1px solid #2d3148',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    background: '#11141c',
+    flexShrink: 0,
+    flexWrap: 'wrap',
+    gap: 8,
+    rowGap: 8,
+  },
+  drawerControlsMobile: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    rowGap: 6,
+    minWidth: 0,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  drawerControlsMobileItem: {
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+  },
+  drawerRefreshLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    flexShrink: 0,
+  },
   hamburger: {
     background: '#1e2438',
     border: '1px solid #2d3148',
@@ -1087,9 +1117,9 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         aria-label="Conversation list"
         aria-hidden={isMobile ? !isDrawerOpen : undefined}
       >
-        <div style={s.colHeader}>
+        <div style={isMobile ? s.drawerHeaderMobile : s.colHeader} data-testid="drawer-header">
           <span style={s.colTitle}>Conversations</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={isMobile ? s.drawerControlsMobile : { display: 'flex', alignItems: 'center', gap: 8 }} data-testid="drawer-controls">
             {isMobile && (
               <button
                 style={s.drawerCloseBtn}
@@ -1100,16 +1130,20 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               </button>
             )}
             {lastRefreshedAt && (
-              <span style={s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
+              <span style={isMobile ? s.drawerRefreshLabel : s.refreshLabel}>{lastRefreshedAt.toLocaleTimeString()}</span>
             )}
-            <button style={{ ...s.btn, background: "#3b82f6", color: "#fff" }} onClick={handleNewConvoClick}>+ New</button>
-            <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
+            <button style={{ ...s.btn, ...(isMobile ? s.drawerControlsMobileItem : {}), background: "#3b82f6", color: "#fff" }} onClick={handleNewConvoClick}>+ New</button>
+            <button style={{ ...s.btn, ...(isMobile ? s.drawerControlsMobileItem : {}) }} onClick={() => setIsPaused((v) => !v)}>
               {isPaused ? '▶ Resume' : '⏸ Pause'}
             </button>
-            <button style={s.btn} onClick={() => fetchConvos('initial')} disabled={loading}>
+            <button style={{ ...s.btn, ...(isMobile ? s.drawerControlsMobileItem : {}) }} onClick={() => fetchConvos('initial')} disabled={loading}>
               {loading ? '…' : 'Refresh'}
             </button>
-            {isPaused ? (
+            {isMobile ? (
+              <span style={{ ...(isPaused ? s.paused : isIdle ? s.paused : s.active), ...s.drawerControlsMobileItem }}>
+                {isPaused ? 'paused' : isIdle ? 'idle' : 'active'}
+              </span>
+            ) : isPaused ? (
               <span style={s.paused}>paused</span>
             ) : isIdle ? (
               <span style={s.paused}>idle</span>
