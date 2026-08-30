@@ -1,6 +1,7 @@
 import { useState, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import useMediaQuery from '../utils/useMediaQuery'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -26,13 +27,15 @@ export const messageStyles = {
   msgRow: (role) => ({
     display: 'flex',
     justifyContent: role === 'user' ? 'flex-end' : 'flex-start',
+    minWidth: 0,
   }),
-  msgBubble: (role) => ({
+  msgBubble: (role, isMobile = false) => ({
     padding: '8px 12px',
     borderRadius: 8,
     border: '1px solid #2d3148',
     background: role === 'user' ? '#162030' : role === 'agent' ? '#12201a' : '#191d2b',
-    maxWidth: '75%',
+    maxWidth: isMobile ? '92%' : '75%',
+    minWidth: 0,
     wordBreak: 'break-word',
     textAlign: 'left',
   }),
@@ -337,9 +340,10 @@ export const MessageBubble = memo(function MessageBubble({ msg, idx, showTools =
   const toolCalls = msg.ToolCalls || []
   const toolResults = msg.ToolResult || []
   const bubbleBg = role === 'user' ? '#162030' : role === 'agent' ? '#12201a' : '#191d2b'
+  const isMobile = useMediaQuery('(max-width: 768px)')
   return (
     <div style={messageStyles.msgRow(role)}>
-      <div style={messageStyles.msgBubble(role)}>
+      <div style={messageStyles.msgBubble(role, isMobile)} data-testid="msg-bubble">
         <div style={messageStyles.msgHeader}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
             <div style={messageStyles.msgRole(role)}>{role}</div>

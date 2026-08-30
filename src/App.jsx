@@ -11,10 +11,19 @@ import LogStreamPage from './components/LogStreamPage'
 import LoginForm from './auth/LoginForm'
 import NavBar from './components/NavBar'
 import WorkflowList from './components/WorkflowList'
+import useMediaQuery from './utils/useMediaQuery'
+
+const MOBILE_BREAKPOINT = '(max-width: 768px)'
 
 const s = {
   main: { maxWidth: 900, margin: '0 auto', padding: '32px 24px' },
   mainWide: { maxWidth: 1400, margin: '0 auto', padding: '16px 24px' },
+  mainMobile: {
+    maxWidth: 1400,
+    margin: '0 auto',
+    padding: '12px 8px',
+    minWidth: 0,
+  },
 }
 
 function parseProviderDataQuery(raw) {
@@ -161,6 +170,7 @@ function buildLogStreamPath(provider, podID, providerData, ghSlug, streamToken) 
 
 export default function App() {
   const { creds, isGitHubSession } = useAuth()
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
   const [view, setView] = useState(() => parseRouteLocation().view)
   const [convoId, setConvoId] = useState(() => parseRouteLocation().convoId)
   const [ghSlug, setGhSlug] = useState(() => parseRouteLocation().ghSlug)
@@ -305,7 +315,7 @@ export default function App() {
         showConversationsTab={showGlobalEventsTab}
         showTabs={view !== 'focus'}
       />
-      <main style={view === 'conversations' || view === 'focus' ? s.mainWide : s.main}>
+      <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobile : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
         {isGitHubSession && view === 'github-events' && (
           <GitHubWorkflowList
             ghSlug={ghSlug}

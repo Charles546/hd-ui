@@ -619,3 +619,98 @@ describe('ConvoHistoryPage', () => {
     })
   })
 })
+
+describe('ConvoHistoryPage - Mobile responsiveness', () => {
+  const originalMatchMedia = window.matchMedia
+
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() {
+            return matches
+          },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => {
+            if (type === 'change') listeners.add(listener)
+          },
+          removeEventListener: (type, listener) => {
+            if (type === 'change') listeners.delete(listener)
+          },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockGetConvoHistory.mockReset()
+    mockGetConvoState.mockReset()
+    mockGetConvoState.mockResolvedValue(null)
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue([])
+    mockStartTurn.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('stacks the header controls on mobile so they never overflow', async () => {
+    installMatchMedia(true)
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('polling')).toBeInTheDocument()
+    })
+
+    const header = screen.getByTestId('convo-header')
+    // Mobile header stacks controls (flexDirection column) so they never overflow.
+    expect(header.style.flexDirection).toBe('column')
+    expect(header.style.padding).toBe('10px 12px')
+    const controls = header.querySelector('div')
+    // Inner controls wrapper wraps on mobile.
+    expect(controls.style.flexWrap).toBe('wrap')
+
+    const page = screen.getByTestId('convo-history-page')
+    // Mobile page uses the dynamic viewport height offset.
+    expect(page.style.height).toBe('calc(100dvh - 100px)')
+  })
+
+  it('keeps desktop header layout unchanged on non-mobile', async () => {
+    installMatchMedia(false)
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('polling')).toBeInTheDocument()
+    })
+
+    const header = screen.getByTestId('convo-header')
+    expect(header.style.flexDirection).toBe('')
+    expect(header.style.padding).toBe('12px 16px')
+
+    const page = screen.getByTestId('convo-history-page')
+    expect(page.style.height).toBe('calc(100vh - 60px)')
+  })
+})

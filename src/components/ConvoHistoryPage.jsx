@@ -5,7 +5,9 @@ import TurnInputArea from './TurnInputArea'
 import AgentPickerModal from './AgentPickerModal'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
+import useMediaQuery from '../utils/useMediaQuery'
 
+const MOBILE_BREAKPOINT = '(max-width: 768px)'
 const POLL_INTERVAL_MS = 10000
 const IDLE_TIMEOUT_MS = 120000 // 2 minutes
 const CONVO_STATE_POLL_INTERVAL_MS = 30000 // Poll status less frequently than history
@@ -70,6 +72,52 @@ const s = {
     userSelect: 'none',
     transition: 'background 0.1s',
   }),
+  pageMobile: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: 'calc(100dvh - 100px)',
+    minHeight: 400,
+    borderRadius: 10,
+    border: '1px solid #2d3148',
+    background: '#141824',
+    overflow: 'hidden',
+  },
+  colHeaderMobile: {
+    padding: '10px 12px',
+    borderBottom: '1px solid #2d3148',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 8,
+    background: '#11141c',
+    flexShrink: 0,
+  },
+  colHeaderControlsMobile: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    rowGap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  historyScrollMobile: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '10px 10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    minHeight: 0,
+  },
+  turnInputAreaMobile: {
+    padding: '8px 10px',
+    borderTop: '1px solid #2d3148',
+    background: '#11141c',
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
 }
 
 function getConvoStatus(history) {
@@ -140,6 +188,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [showThoughts, setShowThoughts] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
   const [convoStatus, setConvoStatus] = useState('unknown')
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
   const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
   const [isDraggingDivider, setIsDraggingDivider] = useState(false)
   const [engines, setEngines] = useState([])
@@ -478,19 +527,19 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const statusColor = STATUS_COLOR[convoStatus] || '#94a3b8'
 
   return (
-    <div style={s.page}>
+    <div style={isMobile ? s.pageMobile : s.page} data-testid="convo-history-page">
       <style>{markdownCSS}</style>
       {/* Header */}
-      <div style={s.colHeader}>
+      <div style={isMobile ? s.colHeaderMobile : s.colHeader} data-testid="convo-header">
         <span style={s.colTitle}>
           History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+        <div style={isMobile ? s.colHeaderControlsMobile : { display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
             <span>Show tools</span>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
             <span>Show thoughts</span>
           </label>
@@ -513,7 +562,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       </div>
 
       {/* History scroll area */}
-      <div style={s.historyScroll}>
+      <div style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
         {historyLoading && history.length === 0 && (
           <div style={s.empty}>Loading…</div>
         )}
@@ -542,7 +591,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>
-          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
+          <div style={isMobile ? { ...s.turnInputAreaMobile, height: inputAreaHeight } : { ...s.turnInputArea, height: inputAreaHeight }}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}

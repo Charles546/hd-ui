@@ -1,10 +1,14 @@
 import { memo, useState } from 'react'
+import useMediaQuery from '../utils/useMediaQuery'
+
+const MOBILE_BREAKPOINT = '(max-width: 768px)'
 
 const areaStyle = {
   display: 'flex',
   gap: 8,
   alignItems: 'flex-end',
   flex: 1,
+  minWidth: 0,
 }
 
 const inputStyle = {
@@ -20,6 +24,7 @@ const inputStyle = {
   lineHeight: 1.5,
   fontFamily: 'inherit',
   minHeight: 38,
+  minWidth: 0,
 }
 
 const btnStyle = {
@@ -45,6 +50,7 @@ const selectStyle = {
   outline: 'none',
   flexShrink: 0,
   width: '100%',
+  minWidth: 0,
 }
 
 function parseEngineValue(value) {
@@ -76,9 +82,11 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   const dropdownOffset = engines && engines.length > 0 ? 40 : 0
   const textareaHeight = inputHeight ? Math.max(38, inputHeight - 20 - dropdownOffset) : undefined
 
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', height: '100%' }}>
-      {engines && engines.length > 0 && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', height: '100%', minWidth: 0 }}>
+      {engines?.length > 0 && (
         <select
           style={selectStyle}
           value={selectedEngine || ''}
@@ -104,7 +112,11 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
           disabled={isSending}
         />
         <button
-          style={{ ...btnStyle, opacity: isSending || !text.trim() ? 0.5 : 1 }}
+          style={{
+            ...btnStyle,
+            ...(isMobile ? { padding: '10px 16px' } : {}),
+            opacity: isSending || !text.trim() ? 0.5 : 1,
+          }}
           onClick={handleSubmit}
           disabled={isSending || !text.trim()}
         >

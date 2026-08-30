@@ -1,4 +1,7 @@
 import { memo, useState } from 'react'
+import useMediaQuery from '../utils/useMediaQuery'
+
+const MOBILE_BREAKPOINT = '(max-width: 768px)'
 
 const inputAreaStyle = {
   padding: '10px 16px',
@@ -14,12 +17,15 @@ const topRowStyle = {
   display: 'flex',
   gap: 8,
   alignItems: 'center',
+  flexWrap: 'wrap',
+  minWidth: 0,
 }
 
 const inputRowStyle = {
   display: 'flex',
   gap: 8,
   alignItems: 'flex-end',
+  minWidth: 0,
 }
 
 const inputStyle = {
@@ -36,6 +42,7 @@ const inputStyle = {
   fontFamily: 'inherit',
   minHeight: 38,
   maxHeight: 140,
+  minWidth: 0,
 }
 
 const btnStyle = {
@@ -60,6 +67,8 @@ const selectStyle = {
   padding: '8px 12px',
   outline: 'none',
   flexShrink: 0,
+  minWidth: 0,
+  maxWidth: '100%',
 }
 
 function parseEngineValue(value) {
@@ -81,6 +90,7 @@ const NewConvoInput = memo(function NewConvoInput({
   inputHeight,
 }) {
   const [text, setText] = useState('')
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
 
   const handleSubmit = () => {
     const trimmed = text.trim()
@@ -98,10 +108,10 @@ const NewConvoInput = memo(function NewConvoInput({
   }
 
   return (
-    <div style={inputAreaStyle}>
+    <div style={isMobile ? { ...inputAreaStyle, padding: '8px 10px' } : inputAreaStyle}>
       <div style={topRowStyle}>
         <select
-          style={selectStyle}
+          style={{ ...selectStyle, ...(isMobile ? { flex: '1 1 100%' } : {}) }}
           value={selectedAgent}
           onChange={(e) => onAgentChange(e.target.value)}
           disabled={isSending}
@@ -110,7 +120,7 @@ const NewConvoInput = memo(function NewConvoInput({
           {agents.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
         <select
-          style={selectStyle}
+          style={{ ...selectStyle, ...(isMobile ? { flex: '1 1 100%' } : {}) }}
           value={selectedEngine}
           onChange={(e) => onEngineChange(e.target.value)}
           disabled={isSending}
@@ -134,7 +144,11 @@ const NewConvoInput = memo(function NewConvoInput({
           disabled={isSending}
         />
         <button
-          style={{ ...btnStyle, opacity: isSending || !text.trim() || !selectedAgent ? 0.5 : 1 }}
+          style={{
+            ...btnStyle,
+            ...(isMobile ? { padding: '10px 16px' } : {}),
+            opacity: isSending || !text.trim() || !selectedAgent ? 0.5 : 1,
+          }}
           onClick={handleSubmit}
           disabled={isSending || !text.trim() || !selectedAgent}
         >

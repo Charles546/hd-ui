@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import ConversationsPage from './ConversationsPage'
 
@@ -460,5 +460,76 @@ describe('ConversationsPage - Mobile Drawer', () => {
     expect(getPanel().getAttribute('aria-hidden')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('T1: shows all drawer header controls (+ New, Pause, Refresh, active badge) on mobile', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'active' },
+      last_session: { status: 'active', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open conversation list' })).toBeInTheDocument()
+    })
+
+    // With a conversation selected the drawer starts closed; open it via the hamburger.
+    fireEvent.click(screen.getByRole('button', { name: 'Open conversation list' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    // Drawer is open.
+    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
+
+    // Every drawer header control is present and reachable (not clipped).
+    const controls = within(screen.getByTestId('drawer-controls'))
+    expect(controls.getByRole('button', { name: '+ New' })).toBeInTheDocument()
+    expect(controls.getByRole('button', { name: '⏸ Pause' })).toBeInTheDocument()
+    expect(controls.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+    // Status badge is visible inside the drawer header.
+    expect(within(screen.getByTestId('drawer-header')).getByText('active')).toBeInTheDocument()
+  })
+
+  it('T2: drawer header and inner controls wrap on mobile so nothing overflows', async () => {
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '+ New' })).toBeInTheDocument()
+    })
+
+    const header = screen.getByTestId('drawer-header')
+    // Mobile drawer header uses a wrapping layout.
+    expect(header).toHaveStyle({ flexWrap: 'wrap', flexShrink: '0' })
+
+    const controls = screen.getByTestId('drawer-controls')
+    // Inner controls row wraps so Refresh / badge are reachable.
+    expect(controls).toHaveStyle({ flexWrap: 'wrap', minWidth: '0' })
+  })
+
+  it('T3: desktop drawer header keeps the base non-wrapping layout', async () => {
+    installMatchMedia(false)
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    const header = screen.getByTestId('drawer-header')
+    // Desktop uses base s.colHeader: no flexWrap applied.
+    expect(header.style.flexWrap).toBe('')
+    const controls = screen.getByTestId('drawer-controls')
+    expect(controls.style.flexWrap).toBe('')
   })
 })
