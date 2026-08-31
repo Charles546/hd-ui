@@ -30,8 +30,13 @@ export const messageStyles = {
     minWidth: 0,
   }),
   msgBubble: (role, isMobile = false) => ({
-    padding: '8px 0',
-    borderRadius: 8,
+    padding: '8px 12px',
+    borderRadius: role === 'user' ? '8px 0 0 8px' : '0 8px 8px 0',
+    border: '1px solid #2d3148',
+    // Drop the alignment-side border so it connects flush to the history-box
+    // border without a doubled 2px line (the box provides the outer line).
+    borderLeft: role === 'user' ? '1px solid #2d3148' : 'none',
+    borderRight: role === 'user' ? 'none' : '1px solid #2d3148',
     background: role === 'user' ? '#162030' : role === 'agent' ? '#12201a' : '#191d2b',
     maxWidth: isMobile ? '92%' : '75%',
     minWidth: 0,

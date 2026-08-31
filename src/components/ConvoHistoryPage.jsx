@@ -43,8 +43,8 @@ const s = {
     flexShrink: 0,
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
-  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
-  empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
+  empty: { textAlign: 'center', color: '#475569', padding: '40px 16px', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
   btn: {
     padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
@@ -105,7 +105,7 @@ const s = {
   historyScrollMobile: {
     flex: 1,
     overflowY: 'auto',
-    padding: '10px 10px',
+    padding: '10px 0',
     display: 'flex',
     flexDirection: 'column',
     gap: 10,

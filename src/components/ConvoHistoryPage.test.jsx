@@ -93,7 +93,11 @@ describe('ConvoHistoryPage', () => {
 
     render(<ConvoHistoryPage convoId="convo-123" />)
 
-    expect(await screen.findByText('No messages in history')).toBeInTheDocument()
+    const empty = await screen.findByText('No messages in history')
+    expect(empty).toBeInTheDocument()
+    // Empty state keeps readable horizontal padding even though the scroll
+    // container no longer has outer horizontal margin.
+    expect(empty.style.padding).toBe('40px 16px')
   })
 
   it('renders messages with correct roles', async () => {
@@ -691,6 +695,12 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     const page = screen.getByTestId('convo-history-page')
     // Mobile page uses the dynamic viewport height offset.
     expect(page.style.height).toBe('calc(100dvh - 100px)')
+
+    const scroll = screen.getByTestId('convo-history-scroll')
+    // Mobile history scroll drops the outer horizontal margin so bubbles reach
+    // the history-box edge (padding '10px 0').
+    expect(scroll.style.paddingLeft).toBe('0px')
+    expect(scroll.style.paddingRight).toBe('0px')
   })
 
   it('keeps desktop header layout unchanged on non-mobile', async () => {
@@ -712,5 +722,11 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
 
     const page = screen.getByTestId('convo-history-page')
     expect(page.style.height).toBe('calc(100vh - 60px)')
+
+    const scroll = screen.getByTestId('convo-history-scroll')
+    // Desktop history scroll drops the outer horizontal margin so bubbles reach
+    // the history-box edge (padding '12px 0').
+    expect(scroll.style.paddingLeft).toBe('0px')
+    expect(scroll.style.paddingRight).toBe('0px')
   })
 })
