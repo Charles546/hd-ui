@@ -201,7 +201,7 @@ const s = {
     flexShrink: 0,
     borderTop: '1px solid #2d3148',
   },
-  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 10 },
 
   convoCard: (selected) => ({
     padding: '10px 12px',
@@ -258,7 +258,7 @@ const s = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  empty: { textAlign: 'center', color: '#475569', padding: '40px 0', fontSize: 14 },
+  empty: { textAlign: 'center', color: '#475569', padding: '40px 16px', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
   btn: {
     padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
@@ -1260,7 +1260,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             )}
           </div>
         </div>
-        <div style={s.historyScroll}>
+        <div style={s.historyScroll} data-testid="conversations-history-scroll">
           {isNewConvo && (
             <div style={s.empty}>Select an agent and type your first message below</div>
           )}

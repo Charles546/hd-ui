@@ -46,6 +46,74 @@ describe('MessageBubble - mobile responsiveness', () => {
     expect(screen.getByText('Hi there')).toBeInTheDocument()
   })
 
+  it('applies a 1px border to the bubble with the alignment side dropped', () => {
+    // jsdom normalizes the hex color in the border shorthand to rgb().
+    // The alignment-side border is dropped so the bubble connects flush to the
+    // history-box border without a doubled 2px line.
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)
+    const agentBubble = screen.getByTestId('msg-bubble')
+    // Left-aligned agent: top/bottom/right borders present, left (alignment side) dropped.
+    expect(agentBubble.style.borderTopWidth).toBe('1px')
+    expect(agentBubble.style.borderTopStyle).toBe('solid')
+    expect(agentBubble.style.borderTopColor).toBe('rgb(45, 49, 72)')
+    expect(agentBubble.style.borderRightWidth).toBe('1px')
+    expect(agentBubble.style.borderRightStyle).toBe('solid')
+    expect(agentBubble.style.borderLeftStyle).toBe('none')
+    expect(agentBubble.style.borderLeftWidth).toBe('medium')
+
+    cleanup()
+    // Right-aligned user: top/bottom/left borders present, right (alignment side) dropped.
+    render(<MessageBubble msg={{ Role: 'user', content: 'Hello' }} />)
+    const userBubble = screen.getByTestId('msg-bubble')
+    expect(userBubble.style.borderTopWidth).toBe('1px')
+    expect(userBubble.style.borderTopStyle).toBe('solid')
+    expect(userBubble.style.borderTopColor).toBe('rgb(45, 49, 72)')
+    expect(userBubble.style.borderLeftWidth).toBe('1px')
+    expect(userBubble.style.borderLeftStyle).toBe('solid')
+    expect(userBubble.style.borderRightStyle).toBe('none')
+    expect(userBubble.style.borderRightWidth).toBe('medium')
+  })
+
+  it('keeps 8px 12px bubble padding', () => {
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)
+    const bubble = screen.getByTestId('msg-bubble')
+    expect(bubble.style.paddingTop).toBe('8px')
+    expect(bubble.style.paddingBottom).toBe('8px')
+    expect(bubble.style.paddingLeft).toBe('12px')
+    expect(bubble.style.paddingRight).toBe('12px')
+  })
+
+  it('squares the alignment-side corners', () => {
+    // Left-aligned roles (agent, system, tool, unknown) square the left corners.
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Agent hello' }} />)
+    const agentBubble = screen.getByTestId('msg-bubble')
+    expect(agentBubble.style.borderRadius).toBe('0 8px 8px 0')
+    expect(agentBubble).toHaveStyle({ borderRadius: '0 8px 8px 0' })
+
+    cleanup()
+    // Right-aligned role (user) squares the right corners.
+    render(<MessageBubble msg={{ Role: 'user', content: 'User hello' }} />)
+    const userBubble = screen.getByTestId('msg-bubble')
+    expect(userBubble.style.borderRadius).toBe('8px 0 0 8px')
+    expect(userBubble).toHaveStyle({ borderRadius: '8px 0 0 8px' })
+
+    cleanup()
+    // Non-user, non-agent roles are also left-aligned.
+    render(<MessageBubble msg={{ Role: 'system', content: 'System hello' }} />)
+    expect(screen.getByTestId('msg-bubble').style.borderRadius).toBe('0 8px 8px 0')
+  })
+
+  it('preserves role-based background colors for agent and user messages', () => {
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Agent hello' }} />)
+    const agentBubble = screen.getByTestId('msg-bubble')
+    expect(agentBubble.style.background).toBe('rgb(18, 32, 26)')
+
+    cleanup()
+    render(<MessageBubble msg={{ Role: 'user', content: 'User hello' }} />)
+    const userBubble = screen.getByTestId('msg-bubble')
+    expect(userBubble.style.background).toBe('rgb(22, 32, 48)')
+  })
+
   it('keeps desktop maxWidth at 75% on non-mobile viewport', () => {
     installMatchMedia(false)
     render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)

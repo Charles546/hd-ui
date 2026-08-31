@@ -460,6 +460,16 @@ describe('ConversationsPage - Mobile Drawer', () => {
     expect(getPanel().getAttribute('aria-hidden')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+
+    // History scroll drops the outer horizontal margin so bubbles reach the
+    // history-box edge (padding '12px 0').
+    const scroll = screen.getByTestId('conversations-history-scroll')
+    expect(scroll.style.paddingLeft).toBe('0px')
+    expect(scroll.style.paddingRight).toBe('0px')
+
+    // Empty state keeps readable horizontal padding even without the outer margin.
+    const empty = screen.getByText('No messages in history')
+    expect(empty.style.padding).toBe('40px 16px')
   })
 
   it('T1: shows all drawer header controls (+ New, Pause, Refresh, active badge) on mobile', async () => {
