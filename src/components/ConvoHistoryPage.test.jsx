@@ -262,11 +262,19 @@ describe('ConvoHistoryPage', () => {
     ])
     mockGetConvoHistory.mockResolvedValue(messages)
 
-    render(<ConvoHistoryPage convoId="convo-123" />)
+    const { container } = render(<ConvoHistoryPage convoId="convo-123" />)
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
     })
+
+    // R1: composer container is borderless and has no outer horizontal margin so
+    // the textarea spans edge-to-edge of the history box.
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer).not.toBeNull()
+    expect(composer.style.borderTopWidth).toBe('0px')
+    expect(composer.style.paddingLeft).toBe('0px')
+    expect(composer.style.paddingRight).toBe('0px')
   })
 
   it('turn input is hidden for active convos', async () => {

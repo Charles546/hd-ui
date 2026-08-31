@@ -286,8 +286,8 @@ const s = {
     marginTop: 4,
   },
   turnInputArea: {
-    padding: '10px 16px',
-    borderTop: '1px solid #2d3148',
+    padding: 0,
+    borderTop: '0px none',
     background: '#11141c',
     flexShrink: 0,
   },
@@ -1296,7 +1296,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           </div>
         )}
         {isNewConvo && (
-          <div style={{ height: inputAreaHeight, flexShrink: 0, overflow: 'hidden' }}>
+          <div data-testid="new-convo-input-area" style={{ height: inputAreaHeight, flexShrink: 0, overflow: 'hidden' }}>
             <NewConvoInput
               agents={agents}
               selectedAgent={selectedAgent}
@@ -1311,7 +1311,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
           </div>
         )}
         {!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
-          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
+          <div data-testid="convo-turn-input-area" style={{ ...s.turnInputArea, height: inputAreaHeight }}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}

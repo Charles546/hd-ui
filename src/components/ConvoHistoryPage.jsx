@@ -53,8 +53,8 @@ const s = {
   paused: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#f6c90e22', color: '#f6c90e', border: '1px solid #f6c90e44' },
   active: { fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: '#4ade8022', color: '#4ade80', border: '1px solid #4ade8044' },
   turnInputArea: {
-    padding: '10px 16px',
-    borderTop: '1px solid #2d3148',
+    padding: 0,
+    borderTop: '0px none',
     background: '#11141c',
     flexShrink: 0,
     overflow: 'hidden',
@@ -112,8 +112,8 @@ const s = {
     minHeight: 0,
   },
   turnInputAreaMobile: {
-    padding: '8px 10px',
-    borderTop: '1px solid #2d3148',
+    padding: 0,
+    borderTop: '0px none',
     background: '#11141c',
     flexShrink: 0,
     overflow: 'hidden',
@@ -591,7 +591,10 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>
-          <div style={isMobile ? { ...s.turnInputAreaMobile, height: inputAreaHeight } : { ...s.turnInputArea, height: inputAreaHeight }}>
+          <div
+            data-testid="convo-turn-input-area"
+            style={isMobile ? { ...s.turnInputAreaMobile, height: inputAreaHeight } : { ...s.turnInputArea, height: inputAreaHeight }}
+          >
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}

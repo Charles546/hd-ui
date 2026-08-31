@@ -1,56 +1,38 @@
 import { memo, useState } from 'react'
-import useMediaQuery from '../utils/useMediaQuery'
+import BadgeSelect from './BadgeSelect'
+import CircularSendButton from './CircularSendButton'
 
-const MOBILE_BREAKPOINT = '(max-width: 768px)'
+// Fixed footprint the footer row adds below the textarea so the textarea
+// height can be derived from the divider-driven composer height.
+const FOOTER_HEIGHT = 30
+// Vertical padding inside the textarea (10px top + 10px bottom).
+const VERTICAL_PAD = 20
 
-const areaStyle = {
-  display: 'flex',
-  gap: 8,
-  alignItems: 'flex-end',
-  flex: 1,
+const textareaStyle = {
+  width: '100%',
   minWidth: 0,
-}
-
-const inputStyle = {
-  flex: 1,
   background: '#0f1117',
-  border: '1px solid #2d3148',
-  borderRadius: 8,
+  border: '0px none',
+  borderRadius: 0,
   color: '#e2e8f0',
   fontSize: 13,
-  padding: '8px 12px',
+  padding: '10px 12px',
   resize: 'none',
   outline: 'none',
   lineHeight: 1.5,
   fontFamily: 'inherit',
   minHeight: 38,
-  minWidth: 0,
+  boxSizing: 'border-box',
 }
 
-const btnStyle = {
-  padding: '8px 16px',
-  borderRadius: 8,
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  background: '#3b82f6',
-  color: '#fff',
-  flexShrink: 0,
-  alignSelf: 'flex-end',
-}
-
-const selectStyle = {
-  background: '#0f1117',
-  border: '1px solid #2d3148',
-  borderRadius: 8,
-  color: '#e2e8f0',
-  fontSize: 13,
-  padding: '8px 12px',
-  outline: 'none',
-  flexShrink: 0,
-  width: '100%',
+const footerStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  marginTop: 4,
   minWidth: 0,
+  flexWrap: 'wrap',
 }
 
 function parseEngineValue(value) {
@@ -78,50 +60,44 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
     }
   }
 
-  // Account for padding (10px top + 10px bottom) and engine dropdown (approx 40px)
-  const dropdownOffset = engines && engines.length > 0 ? 40 : 0
-  const textareaHeight = inputHeight ? Math.max(38, inputHeight - 20 - dropdownOffset) : undefined
+  const textareaHeight = inputHeight ? Math.max(38, inputHeight - FOOTER_HEIGHT - VERTICAL_PAD) : undefined
 
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const engineOptions = []
+  if (!selectedEngine) engineOptions.push({ value: '', label: 'Default engine' })
+  ;(engines || []).forEach((e) => {
+    engineOptions.push({ value: `${e.driver}:${e.engine}`, label: `${e.driver}:${e.engine}` })
+  })
+
+  const hasEngines = (engines && engines.length > 0) || !selectedEngine
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', height: '100%', minWidth: 0 }}>
-      {engines?.length > 0 && (
-        <select
-          style={selectStyle}
-          value={selectedEngine || ''}
-          onChange={(e) => onEngineChange(e.target.value)}
-          disabled={isSending}
-        >
-          <option value="">Default engine</option>
-          {engines.map((e) => (
-            <option key={e.driver + ':' + e.engine} value={e.driver + ':' + e.engine}>
-              {e.driver}:{e.engine}
-            </option>
-          ))}
-        </select>
-      )}
-      <div style={{ ...areaStyle, flex: 1 }}>
-        <textarea
-          style={{ ...inputStyle, height: textareaHeight }}
-          rows={1}
-          placeholder={placeholder || 'Type a message…'}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isSending}
-        />
-        <button
-          style={{
-            ...btnStyle,
-            ...(isMobile ? { padding: '10px 16px' } : {}),
-            opacity: isSending || !text.trim() ? 0.5 : 1,
-          }}
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0 }}>
+      <textarea
+        style={{ ...textareaStyle, height: textareaHeight }}
+        rows={1}
+        placeholder={placeholder || 'Type a message…'}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={isSending}
+      />
+      <div style={footerStyle}>
+        {hasEngines && (
+          <BadgeSelect
+            value={selectedEngine || ''}
+            onChange={onEngineChange}
+            options={engineOptions}
+            emptyLabel="Default engine"
+            disabled={isSending}
+            ariaLabel="Engine"
+          />
+        )}
+        <CircularSendButton
           onClick={handleSubmit}
           disabled={isSending || !text.trim()}
-        >
-          {isSending ? '…' : (buttonLabel || 'Send')}
-        </button>
+          sending={isSending}
+          ariaLabel={buttonLabel || 'Send'}
+        />
       </div>
     </div>
   )
