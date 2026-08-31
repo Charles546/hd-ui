@@ -46,6 +46,33 @@ describe('MessageBubble - mobile responsiveness', () => {
     expect(screen.getByText('Hi there')).toBeInTheDocument()
   })
 
+  it('does not apply a border to the bubble', () => {
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)
+    const bubble = screen.getByTestId('msg-bubble')
+    expect(bubble.style.border).toBe('')
+    expect(bubble).not.toHaveStyle({ border: '1px solid #2d3148' })
+  })
+
+  it('preserves role-based background colors for agent and user messages', () => {
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Agent hello' }} />)
+    const agentBubble = screen.getByTestId('msg-bubble')
+    expect(agentBubble.style.background).toBe('rgb(18, 32, 26)')
+
+    cleanup()
+    render(<MessageBubble msg={{ Role: 'user', content: 'User hello' }} />)
+    const userBubble = screen.getByTestId('msg-bubble')
+    expect(userBubble.style.background).toBe('rgb(22, 32, 48)')
+  })
+
+  it('applies vertical-only padding of 8px 0', () => {
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)
+    const bubble = screen.getByTestId('msg-bubble')
+    expect(bubble.style.paddingTop).toBe('8px')
+    expect(bubble.style.paddingBottom).toBe('8px')
+    expect(bubble.style.paddingLeft).toBe('0px')
+    expect(bubble.style.paddingRight).toBe('0px')
+  })
+
   it('keeps desktop maxWidth at 75% on non-mobile viewport', () => {
     installMatchMedia(false)
     render(<MessageBubble msg={{ Role: 'agent', content: 'Hello' }} />)
