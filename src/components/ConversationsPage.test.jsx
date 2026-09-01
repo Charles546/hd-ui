@@ -657,3 +657,257 @@ describe('ConversationsPage - Mobile Drawer', () => {
     expect(divider.style.touchAction).toBe('none')
   })
 })
+
+describe('ConversationsPage - Hamburger in title bar (mobile)', () => {
+  const originalMatchMedia = window.matchMedia
+
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() { return matches },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => { if (type === 'change') listeners.add(listener) },
+          removeEventListener: (type, listener) => { if (type === 'change') listeners.delete(listener) },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListConvos.mockReset()
+    mockListConvos.mockResolvedValue([])
+    mockGetConvoHistory.mockReset()
+    mockGetConvoHistory.mockResolvedValue([])
+    mockGetConvoState.mockReset()
+    mockGetConvoState.mockResolvedValue(null)
+    mockCancelConvo.mockReset()
+    mockCancelConvo.mockResolvedValue({})
+    mockStartTurn.mockReset()
+    mockStartNewConvo.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue(['agent1', 'agent2'])
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue(['openai:gpt-4o'])
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('renders the hamburger in the NEW title bar on mobile (not in the controls nav bar)', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // The hamburger lives inside the dedicated title bar, not the nav bar.
+    const titleBar = within(screen.getByTestId('conversations-title-bar'))
+    expect(titleBar.getByRole('button', { name: 'Open conversation list' })).toBeInTheDocument()
+
+    // The controls nav bar has the toggles but NOT the hamburger.
+    const navBar = within(screen.getByTestId('conversations-nav-bar'))
+    expect(navBar.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
+    expect(navBar.getByText('Show tools')).toBeInTheDocument()
+  })
+
+  it('does not render the hamburger on desktop and keeps the single original header', async () => {
+    installMatchMedia(false)
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // No hamburger on desktop.
+    expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
+    // No split title/nav bars on desktop — single colHeader.
+    expect(screen.queryByTestId('conversations-title-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('conversations-nav-bar')).not.toBeInTheDocument()
+    const rightCol = screen.getByTestId('conversations-right-col')
+    const header = rightCol.querySelector('[style*="padding: 12px 16px"]')
+    expect(header).not.toBeNull()
+  })
+
+  it('forces the headers visible while the drawer is open (does not collapse)', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    const { container } = render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Drawer starts closed (a conversation is selected). Open it via the hamburger.
+    fireEvent.click(screen.getByRole('button', { name: 'Open conversation list' }))
+    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+
+    // Drawer open → collapse is inactive, so a strong forward scroll must NOT
+    // collapse the headers.
+    const titleBar = screen.getByTestId('conversations-title-bar')
+    const navBar = screen.getByTestId('conversations-nav-bar')
+    const scroller = screen.getByTestId('conversations-history-scroll')
+    scroller.scrollTop = 120
+    fireEvent.scroll(scroller)
+
+    expect(titleBar.style.transform).toBe('translateY(0)')
+    expect(navBar.style.transform).toBe('translateY(0)')
+  })
+})
+
+describe('ConversationsPage - Collapsing headers (auto-hide)', () => {
+  const originalMatchMedia = window.matchMedia
+
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() { return matches },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => { if (type === 'change') listeners.add(listener) },
+          removeEventListener: (type, listener) => { if (type === 'change') listeners.delete(listener) },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListConvos.mockReset()
+    mockListConvos.mockResolvedValue([])
+    mockGetConvoHistory.mockReset()
+    mockGetConvoHistory.mockResolvedValue([])
+    mockGetConvoState.mockReset()
+    mockGetConvoState.mockResolvedValue(null)
+    mockCancelConvo.mockReset()
+    mockCancelConvo.mockResolvedValue({})
+    mockStartTurn.mockReset()
+    mockStartNewConvo.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue(['agent1', 'agent2'])
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue(['openai:gpt-4o'])
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('collapses the title bar + nav bar on forward scroll but keeps the composer visible', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+
+    const { container } = render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const titleBar = screen.getByTestId('conversations-title-bar')
+    const navBar = screen.getByTestId('conversations-nav-bar')
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    const scroller = screen.getByTestId('conversations-history-scroll')
+
+    expect(titleBar.style.transform).toBe('translateY(0)')
+    expect(navBar.style.transform).toBe('translateY(0)')
+
+    // Forward scroll beyond the threshold → both header rows collapse.
+    scroller.scrollTop = 120
+    fireEvent.scroll(scroller)
+    expect(titleBar.style.transform).toBe('translateY(-100%)')
+    expect(navBar.style.transform).toBe('translateY(-100%)')
+
+    // Composer does NOT receive the collapse transform.
+    expect(composer.style.transform).toBe('')
+  })
+
+  it('re-shows the headers when the scroll reaches the top', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const titleBar = screen.getByTestId('conversations-title-bar')
+    const navBar = screen.getByTestId('conversations-nav-bar')
+    const scroller = screen.getByTestId('conversations-history-scroll')
+
+    // Collapse.
+    scroller.scrollTop = 150
+    fireEvent.scroll(scroller)
+    expect(titleBar.style.transform).toBe('translateY(-100%)')
+
+    // Reach the top → revealed again.
+    scroller.scrollTop = 0
+    fireEvent.scroll(scroller)
+    expect(titleBar.style.transform).toBe('translateY(0)')
+    expect(navBar.style.transform).toBe('translateY(0)')
+  })
+})

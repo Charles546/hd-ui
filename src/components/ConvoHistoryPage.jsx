@@ -7,6 +7,7 @@ import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
 import useDividerDrag from '../utils/useDividerDrag'
+import useAutoHideHeader from '../utils/useAutoHideHeader'
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
 const POLL_INTERVAL_MS = 10000
@@ -84,18 +85,29 @@ const s = {
     background: '#141824',
     overflow: 'hidden',
   },
-  colHeaderMobile: {
-    padding: '10px 12px',
+  mobileHeaderWrap: (collapsed) => ({
+    flexShrink: 0,
+    overflow: 'hidden',
+    background: '#11141c',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+    maxHeight: collapsed ? 0 : 220,
+    transition: 'max-height 0.25s ease',
+    minHeight: 0,
+  }),
+  mobileTitleBar: (collapsed) => ({
+    padding: '10px 12px 4px 12px',
+    display: 'flex',
+    alignItems: 'center',
     gap: 8,
     background: '#11141c',
     flexShrink: 0,
-  },
-  colHeaderControlsMobile: {
+    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
+    transition: 'transform 0.25s ease',
+  }),
+  mobileNavBar: (collapsed) => ({
+    padding: '4px 12px 10px 12px',
     display: 'flex',
     alignItems: 'center',
     gap: 8,
@@ -103,7 +115,11 @@ const s = {
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
     width: '100%',
-  },
+    background: '#11141c',
+    flexShrink: 0,
+    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
+    transition: 'transform 0.25s ease',
+  }),
   historyScrollMobile: {
     flex: 1,
     overflowY: 'auto',
@@ -207,6 +223,16 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   // Agent picker state
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [pendingTurn, setPendingTurn] = useState(null)
+
+  // Auto-hide the title bar + nav bar on forward scroll (mobile browser
+  // address-bar style). Paused while the agent picker modal is open.
+  const [headersCollapsed, setHeadersCollapsed] = useState(false)
+  const historyScrollRef = useRef(null)
+  useAutoHideHeader({
+    containerRef: historyScrollRef,
+    active: isMobile && !showAgentPicker,
+    onCollapsedChange: setHeadersCollapsed,
+  })
 
   const timerRef = useRef(null)
   const convoStateTimerRef = useRef(null)
@@ -514,43 +540,65 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
 
   const statusColor = STATUS_COLOR[convoStatus] || '#94a3b8'
 
+
+  const headerControls = (
+    <>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+        <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+        <span>Show tools</span>
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+        <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+        <span>Show thoughts</span>
+      </label>
+      {isActive && (
+        <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
+          {isPaused ? '▶ Resume' : '⏸ Pause'}
+        </button>
+      )}
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: statusColor + '22', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.5, border: `1px solid ${statusColor}44` }}>
+        {convoStatus}
+      </span>
+      {isActive && !isPaused && !isIdle ? (
+        <span style={s.active}>polling</span>
+      ) : isPaused ? (
+        <span style={s.paused}>paused</span>
+      ) : isIdle ? (
+        <span style={s.paused}>idle</span>
+      ) : null}
+    </>
+  )
+
+
   return (
     <div style={isMobile ? s.pageMobile : s.page} data-testid="convo-history-page">
       <style>{markdownCSS}</style>
-      {/* Header */}
-      <div style={isMobile ? s.colHeaderMobile : s.colHeader} data-testid="convo-header">
-        <span style={s.colTitle}>
-          History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
-        </span>
-        <div style={isMobile ? s.colHeaderControlsMobile : { display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
-            <span>Show tools</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-            <span>Show thoughts</span>
-          </label>
-          {isActive && (
-            <button style={s.btn} onClick={() => setIsPaused((v) => !v)}>
-              {isPaused ? '▶ Resume' : '⏸ Pause'}
-            </button>
-          )}
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: statusColor + '22', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.5, border: `1px solid ${statusColor}44` }}>
-            {convoStatus}
-          </span>
-          {isActive && !isPaused && !isIdle ? (
-            <span style={s.active}>polling</span>
-          ) : isPaused ? (
-            <span style={s.paused}>paused</span>
-          ) : isIdle ? (
-            <span style={s.paused}>idle</span>
-          ) : null}
+      {/* Header: desktop keeps a single row; mobile splits into a collapsible
+          title bar + nav bar that auto-hide on forward scroll. */}
+      {isMobile ? (
+        <div style={s.mobileHeaderWrap(headersCollapsed)} data-testid="convo-header">
+          <div style={s.mobileTitleBar(headersCollapsed)} data-testid="convo-title-bar">
+            <span style={s.colTitle}>
+              History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
+            </span>
+          </div>
+          <div style={s.mobileNavBar(headersCollapsed)} data-testid="convo-nav-bar">
+            {headerControls}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={s.colHeader} data-testid="convo-header">
+          <span style={s.colTitle}>
+            History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {headerControls}
+          </div>
+        </div>
+      )}
 
       {/* History scroll area */}
-      <div style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
+      <div ref={historyScrollRef} style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
         {historyLoading && history.length === 0 && (
           <div style={s.empty}>Loading…</div>
         )}

@@ -759,12 +759,17 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     })
 
     const header = screen.getByTestId('convo-header')
-    // Mobile header stacks controls (flexDirection column) so they never overflow.
+    // Mobile header splits into a two-row stack: a title bar + a nav bar
+    // (flexDirection column) so controls never overflow.
     expect(header.style.flexDirection).toBe('column')
-    expect(header.style.padding).toBe('10px 12px')
-    const controls = header.querySelector('div')
-    // Inner controls wrapper wraps on mobile.
-    expect(controls.style.flexWrap).toBe('wrap')
+    const titleBar = screen.getByTestId('convo-title-bar')
+    // Title bar carries the header padding.
+    // Browser normalizes equal left/right shorthand values.
+    expect(titleBar.style.padding).toBe('10px 12px 4px')
+    const navBar = screen.getByTestId('convo-nav-bar')
+    // Nav bar controls wrap on mobile.
+    expect(navBar.style.flexWrap).toBe('wrap')
+    expect(navBar.querySelector('label')).not.toBeNull()
 
     const page = screen.getByTestId('convo-history-page')
     // Mobile page uses the dynamic viewport height offset.
@@ -829,5 +834,133 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     // the history-box edge (padding '12px 0').
     expect(scroll.style.paddingLeft).toBe('0px')
     expect(scroll.style.paddingRight).toBe('0px')
+  })
+})
+
+describe('ConvoHistoryPage - Collapsing headers (auto-hide)', () => {
+  const originalMatchMedia = window.matchMedia
+
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() { return matches },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => { if (type === 'change') listeners.add(listener) },
+          removeEventListener: (type, listener) => { if (type === 'change') listeners.delete(listener) },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockGetConvoHistory.mockReset()
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue([])
+    mockStartTurn.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue([])
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  function scrollTo(container, scrollTop) {
+    container.scrollTop = scrollTop
+    fireEvent.scroll(container)
+  }
+
+  it('collapses the title bar + nav bar on forward scroll but keeps the composer visible', async () => {
+    // A terminal conversation (agent-last 'complete') so the turn input +
+    // divider compose area is rendered at the bottom.
+    mockGetConvoHistory.mockResolvedValue(makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ]))
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('divider')).toBeInTheDocument()
+    })
+
+    const titleBar = screen.getByTestId('convo-title-bar')
+    const navBar = screen.getByTestId('convo-nav-bar')
+    const composer = screen.getByTestId('convo-turn-input-area')
+    const scroller = screen.getByTestId('convo-history-scroll')
+
+    // Initially expanded (no translate).
+    expect(titleBar.style.transform).toBe('translateY(0)')
+    expect(navBar.style.transform).toBe('translateY(0)')
+
+    // Forward scroll beyond the threshold → both header rows collapse.
+    scrollTo(scroller, 120)
+    expect(titleBar.style.transform).toBe('translateY(-100%)')
+    expect(navBar.style.transform).toBe('translateY(-100%)')
+
+    // Composer does NOT receive the collapse transform — it stays visible.
+    expect(composer.style.transform).toBe('')
+  })
+
+  it('re-shows the headers when the scroll reaches the top', async () => {
+    mockGetConvoHistory.mockResolvedValue(makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ]))
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('divider')).toBeInTheDocument()
+    })
+
+    const titleBar = screen.getByTestId('convo-title-bar')
+    const navBar = screen.getByTestId('convo-nav-bar')
+    const scroller = screen.getByTestId('convo-history-scroll')
+
+    // Collapse.
+    scrollTo(scroller, 150)
+    expect(titleBar.style.transform).toBe('translateY(-100%)')
+
+    // Reach the top → revealed again.
+    scrollTo(scroller, 0)
+    expect(titleBar.style.transform).toBe('translateY(0)')
+    expect(navBar.style.transform).toBe('translateY(0)')
+  })
+
+  it('keeps the single desktop header row unchanged and does not collapse on scroll', async () => {
+    installMatchMedia(false)
+    mockGetConvoHistory.mockResolvedValue(makeMessages([
+      { Role: 'user', content: 'Hello' },
+    ]))
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('polling')).toBeInTheDocument()
+    })
+
+    // Desktop uses a single concatenated header; no split title/nav bars.
+    const header = screen.getByTestId('convo-header')
+    expect(screen.queryByTestId('convo-title-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('convo-nav-bar')).not.toBeInTheDocument()
+    expect(header.style.padding).toBe('12px 16px')
+
+    // Scrolling does not introduce any collapse transform on desktop.
+    const scroller = screen.getByTestId('convo-history-scroll')
+    scrollTo(scroller, 120)
+    expect(header.style.transform).toBe('')
   })
 })

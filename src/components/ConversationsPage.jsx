@@ -14,6 +14,7 @@ import AgentPickerModal from './AgentPickerModal'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
 import useDividerDrag from '../utils/useDividerDrag'
+import useAutoHideHeader from '../utils/useAutoHideHeader'
 
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
@@ -109,17 +110,42 @@ const s = {
     background: '#11141c',
     flexShrink: 0,
   },
-  mobileColHeader: {
-    padding: '12px 12px',
+  mobileHeaderWrap: (collapsed) => ({
+    flexShrink: 0,
+    overflow: 'hidden',
+    background: '#11141c',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
+    flexDirection: 'column',
+    maxHeight: collapsed ? 0 : 220,
+    transition: 'max-height 0.25s ease',
+    minHeight: 0,
+  }),
+  mobileTitleBar: (collapsed) => ({
+    padding: '10px 12px 4px 12px',
+    display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     background: '#11141c',
     flexShrink: 0,
-    flexWrap: 'wrap',
+    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
+    transition: 'transform 0.25s ease',
+    minWidth: 0,
+  }),
+  mobileNavBar: (collapsed) => ({
+    padding: '4px 12px 10px 12px',
+    display: 'flex',
+    alignItems: 'center',
     gap: 8,
-  },
+    rowGap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    width: '100%',
+    background: '#11141c',
+    flexShrink: 0,
+    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
+    transition: 'transform 0.25s ease',
+  }),
   colTitleWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -131,13 +157,6 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-  },
-  mobileColControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
   },
   drawerHeaderMobile: {
     padding: '10px 12px',
@@ -587,7 +606,19 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     inputAreaHeight,
     inputAreaStyle: dividerInputAreaStyle,
   } = useDividerDrag(MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT, DEFAULT_INPUT_HEIGHT)
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  const [headersCollapsed, setHeadersCollapsed] = useState(false)
+  const historyScrollRef = useRef(null)
+  // Auto-hide the title bar + nav bar on forward scroll, mobile-browser
+  // address-bar style. Paused while the drawer or a modal is open.
+  useAutoHideHeader({
+    containerRef: historyScrollRef,
+    active: isMobile && !isDrawerOpen && !showAgentPicker,
+    onCollapsedChange: setHeadersCollapsed,
+  })
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -595,10 +626,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const wasIdleRef = useRef(false)
   const wasHistoryIdleRef = useRef(false)
 
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
-
   // Agent picker state for recovery
-  const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [pendingTurn, setPendingTurn] = useState(null)
   const [agentMetadata, setAgentMetadata] = useState({})
 
@@ -1216,49 +1244,83 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
 
       {/* Right column — history */}
       <div style={isMobile ? s.rightColMobile : s.rightCol} data-testid="conversations-right-col">
-        <div style={isMobile ? s.mobileColHeader : s.colHeader}>
-          <div style={s.colTitleWrap}>
-            {isMobile && (
-              <button
-                style={s.hamburger}
-                onClick={() => setIsDrawerOpen(true)}
-                aria-label="Open conversation list"
-                aria-expanded={isDrawerOpen}
-                aria-controls="conversation-list-panel"
-              >
-                ☰
-              </button>
-            )}
-            <span style={s.colTitle}>
-              {isNewConvo
-                ? 'New Conversation'
-                : selectedConvo
-                  ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
-                  : 'History'}
-            </span>
+        {isMobile ? (
+          <div style={s.mobileHeaderWrap(headersCollapsed)} data-testid="conversations-header">
+            <div style={{ ...s.mobileTitleBar(headersCollapsed), justifyContent: 'space-between' }} data-testid="conversations-title-bar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <button
+                  style={{ ...s.hamburger, position: 'relative', zIndex: 2 }}
+                  onClick={() => setIsDrawerOpen(true)}
+                  aria-label="Open conversation list"
+                  aria-expanded={isDrawerOpen}
+                  aria-controls="conversation-list-panel"
+                >
+                  ☰
+                </button>
+                <span style={s.colTitle}>
+                  {isNewConvo
+                    ? 'New Conversation'
+                    : selectedConvo
+                      ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                      : 'History'}
+                </span>
+              </div>
+            </div>
+            <div style={{ ...s.mobileNavBar(headersCollapsed), justifyContent: 'flex-end' }} data-testid="conversations-nav-bar">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+                <span>Show tools</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+                <span>Show thoughts</span>
+              </label>
+              {isSelectedConvoActive && (
+                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+              )}
+              {selectedID && (
+                <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
+                  ⧉ Focus mode
+                </button>
+              )}
+            </div>
           </div>
-          <div style={isMobile ? s.mobileColControls : s.colControls}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-              <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
-              <span>Show tools</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-              <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-              <span>Show thoughts</span>
-            </label>
-            {isSelectedConvoActive && (
-              <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
-                {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
-              </button>
-            )}
-            {selectedID && (
-              <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
-                ⧉ Focus mode
-              </button>
-            )}
+        ) : (
+          <div style={s.colHeader}>
+            <div style={s.colTitleWrap}>
+              <span style={s.colTitle}>
+                {isNewConvo
+                  ? 'New Conversation'
+                  : selectedConvo
+                    ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                    : 'History'}
+              </span>
+            </div>
+            <div style={s.colControls}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+                <span>Show tools</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+                <span>Show thoughts</span>
+              </label>
+              {isSelectedConvoActive && (
+                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+              )}
+              {selectedID && (
+                <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
+                  ⧉ Focus mode
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-        <div style={s.historyScroll} data-testid="conversations-history-scroll">
+        )}
+        <div ref={historyScrollRef} style={s.historyScroll} data-testid="conversations-history-scroll">
           {isNewConvo && (
             <div style={s.empty}>Select an agent and type your first message below</div>
           )}
