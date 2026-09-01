@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Robust divider drag for both mouse and touch.
@@ -18,6 +18,8 @@ import { useCallback, useRef, useState } from 'react'
  *
  * A drag-guard ref prevents double-binding when a real device fires both
  * pointer and touch events for the same gesture; whichever fires first wins.
+ * If the divider element unmounts mid-drag (e.g. a conversation flips to
+ * active and the strip hides), the guard is reset so future drags still work.
  *
  * @param {number} minHeight - clamp lower bound (px)
  * @param {number} maxHeight - clamp upper bound (px)
@@ -41,6 +43,15 @@ export default function useDividerDrag(minHeight, maxHeight, initialHeight) {
   const [isDragging, setIsDragging] = useState(false)
   const dividerRef = useRef(null)
   const draggingRef = useRef(false)
+
+  // Safety net: if the divider element disappears mid-drag (conditional
+  // render hides the strip), reset the drag guard so the next drag works.
+  useEffect(() => {
+    if (!dividerRef.current) {
+      draggingRef.current = false
+      setIsDragging(false)
+    }
+  })
 
   const beginDrag = useCallback((clientY, pointerId, target) => {
     // Guard: on touch devices a gesture fires both pointerdown and touchstart;
@@ -115,11 +126,10 @@ export default function useDividerDrag(minHeight, maxHeight, initialHeight) {
   }, [beginDrag])
 
   const handleTouchMove = useCallback((e) => {
-    // Best-effort guard. NOTE: React 18 attaches synthetic touchmove as a
-    // passive root listener, so this cannot block scrolling by itself; the
-    // actual scroll-blocking is done by the native non-passive touchmove
-    // listener attached during beginDrag. Keep it for browsers/tests where it
-    // does work and as a forward-compat guard.
+    // Best-effort guard kept per requirements. NOTE: React 18 attaches the
+    // synthetic touchmove as a passive root listener, so this alone cannot
+    // block scrolling; the actual scroll-blocking is done by the native
+    // non-passive touchmove listener attached during beginDrag.
     e.preventDefault()
   }, [])
 
