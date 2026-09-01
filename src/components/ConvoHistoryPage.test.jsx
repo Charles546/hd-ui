@@ -277,6 +277,39 @@ describe('ConvoHistoryPage', () => {
     expect(composer.style.paddingRight).toBe('0px')
   })
 
+  it('divider pointer-drag resizes the composer strip and touch is enabled', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    const { container } = render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    // Item 5: divider uses pointer events + touch-action none so touch drag works.
+    const divider = screen.getByTestId('divider')
+    expect(divider).not.toBeNull()
+    expect(divider.style.touchAction).toBe('none')
+
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer).not.toBeNull()
+    // DEFAULT_INPUT_HEIGHT = 160
+    expect(composer.style.height).toBe('160px')
+
+    // Pointer-drag down by 50px -> height grows to 210px (drag uses clientY delta).
+    fireEvent.pointerDown(divider, { clientY: 200 })
+    fireEvent.pointerMove(window, { clientY: 150 })
+    expect(composer.style.height).toBe('210px')
+
+    // Releasing clears the drag state without crashing.
+    fireEvent.pointerUp(window)
+    expect(composer.style.height).toBe('210px')
+  })
+
   it('turn input is hidden for active convos', async () => {
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },

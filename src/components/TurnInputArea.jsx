@@ -5,7 +5,7 @@ import CircularSendButton from './CircularSendButton'
 const textareaStyle = {
   width: '100%',
   minWidth: 0,
-  background: '#0f1117',
+  background: '#11141c',
   border: '0px none',
   borderRadius: 0,
   color: '#e2e8f0',
@@ -26,12 +26,11 @@ const footerStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
-  marginTop: 'auto',
   minWidth: 0,
   flexWrap: 'wrap',
   flexShrink: 0,
   boxSizing: 'border-box',
-  padding: '0 12px',
+  padding: '0 12px 10px',
 }
 
 function parseEngineValue(value) {
@@ -68,7 +67,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   const hasEngines = (engines && engines.length > 0) || !selectedEngine
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
       <textarea
         style={textareaStyle}
         rows={1}

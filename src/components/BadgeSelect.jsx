@@ -5,14 +5,14 @@ import { useRef } from 'react'
 const badgeStyle = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
-  padding: '4px 10px',
-  borderRadius: 12,
+  gap: 6,
+  padding: '6px 12px',
+  borderRadius: 14,
   background: '#1e2438',
   border: '1px solid #2d3148',
-  color: '#94a3b8',
-  fontSize: 11,
-  fontWeight: 500,
+  color: '#cbd5e1',
+  fontSize: 12,
+  fontWeight: 600,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   userSelect: 'none',
@@ -59,7 +59,7 @@ export default function BadgeSelect({ value, onChange, options, emptyLabel, disa
         onClick={openPicker}
       >
         <span>{selected ? selected.label : (emptyLabel || 'Select')}</span>
-        <span aria-hidden="true" style={{ fontSize: 9, color: '#64748b' }}>▾</span>
+        <span aria-hidden="true" style={{ fontSize: 10, color: '#64748b' }}>▾</span>
       </button>
       <select
         ref={selectRef}

@@ -9,13 +9,14 @@ const inputAreaStyle = {
   flexDirection: 'column',
   gap: 8,
   minWidth: 0,
+  minHeight: 0,
   height: '100%',
 }
 
 const textareaStyle = {
   width: '100%',
   minWidth: 0,
-  background: '#0f1117',
+  background: '#11141c',
   border: '0px none',
   borderRadius: 0,
   color: '#e2e8f0',
@@ -26,7 +27,6 @@ const textareaStyle = {
   lineHeight: 1.5,
   fontFamily: 'inherit',
   minHeight: 38,
-  maxHeight: 140,
   boxSizing: 'border-box',
   flex: '1 1 auto',
   overflowY: 'auto',
@@ -37,12 +37,11 @@ const footerStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
-  marginTop: 'auto',
   minWidth: 0,
   flexWrap: 'wrap',
   flexShrink: 0,
   boxSizing: 'border-box',
-  padding: '0 12px',
+  padding: '0 12px 10px',
 }
 
 const badgesWrapStyle = {

@@ -36,12 +36,14 @@ describe('NewConvoInput', () => {
     expect(ta.style.borderRadius).toBe('0px')
   })
 
-  it('T1b: footer row has horizontal breathing room and textarea stays full-bleed', () => {
+  it('T1b: footer row has horizontal breathing room, bottom padding, and textarea stays full-bleed', () => {
     render(<NewConvoInput {...baseProps} />)
     const footer = screen.getByTestId('new-convo-composer-footer')
-    // R1: footer only gets horizontal padding so badges/send have room from the side borders.
+    // R1: footer has horizontal padding for side room and bottom padding
+    // between the badges/button and the strip's bottom border.
     expect(footer.style.paddingLeft).toBe('12px')
     expect(footer.style.paddingRight).toBe('12px')
+    expect(footer.style.paddingBottom).toBe('10px')
 
     // textarea still full-bleed / borderless
     const ta = screen.getByPlaceholderText('Type your first message…')
@@ -55,13 +57,36 @@ describe('NewConvoInput', () => {
     const footer = screen.getByTestId('new-convo-composer-footer')
     const ta = screen.getByPlaceholderText('Type your first message…')
 
-    // R2: footer pinned to bottom edge and never grows.
-    expect(footer.style.marginTop).toBe('auto')
+    // R2: footer pinned to bottom edge and never grows. The auto margin is
+    // removed so the textarea's flex-grow absorbs all the divider-driven space.
+    expect(footer.style.marginTop).not.toBe('auto')
     expect(footer.style.flexShrink).toBe('0')
 
     // R2: textarea is the flex child that absorbs height changes; no hardcoded height.
     expect(ta.style.flex).toMatch(/^1 /)
     expect(ta.style.height).toBe('')
+    // R4: the max-height cap is removed so the textarea keeps growing on tall strips.
+    expect(ta.style.maxHeight).toBe('')
+  })
+
+  it('T1d: textarea background matches the composer box for a seamless borderless look', () => {
+    render(<NewConvoInput {...baseProps} />)
+    const ta = screen.getByPlaceholderText('Type your first message…')
+    // #11141c serializes to rgb(17, 20, 28) in jsdom
+    expect(ta.style.backgroundColor).toBe('rgb(17, 20, 28)')
+  })
+
+  it('T1e: agent and engine badges are larger with a rounder pill look', () => {
+    render(<NewConvoInput {...baseProps} />)
+    const agentBadge = screen.getByRole('button', { name: /agent/i })
+    expect(agentBadge.style.padding).toBe('6px 12px')
+    expect(agentBadge.style.fontSize).toBe('12px')
+    expect(agentBadge.style.borderRadius).toBe('14px')
+
+    const engineBadge = screen.getByRole('button', { name: /engine/i })
+    expect(engineBadge.style.padding).toBe('6px 12px')
+    expect(engineBadge.style.fontSize).toBe('12px')
+    expect(engineBadge.style.borderRadius).toBe('14px')
   })
 
   it('T2: footer has Agent + Engine badges and a circular Start button', () => {

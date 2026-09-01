@@ -270,6 +270,47 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
       expect(screen.getByText('Conversation expired. Select an agent to revive it.')).toBeInTheDocument()
     })
   })
+
+  it('divider pointer-drag resizes the turn composer strip and touch is enabled', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    const { container } = render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    const convoCard = screen.getByText('convo-123')
+    fireEvent.click(convoCard)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    // Item 5: divider uses pointer events + touch-action none so touch drag works.
+    const divider = screen.getByTestId('divider')
+    expect(divider).not.toBeNull()
+    expect(divider.style.touchAction).toBe('none')
+
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer).not.toBeNull()
+    // DEFAULT_INPUT_HEIGHT = 160
+    expect(composer.style.height).toBe('160px')
+
+    // Pointer-drag down by 50px -> height grows to 210px (drag uses clientY delta).
+    fireEvent.pointerDown(divider, { clientY: 200 })
+    fireEvent.pointerMove(window, { clientY: 150 })
+    expect(composer.style.height).toBe('210px')
+
+    // Releasing clears the drag state without crashing.
+    fireEvent.pointerUp(window)
+    expect(composer.style.height).toBe('210px')
+  })
 })
 
 describe('ConversationsPage - Mobile Drawer', () => {

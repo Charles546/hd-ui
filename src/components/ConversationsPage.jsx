@@ -302,6 +302,7 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     userSelect: 'none',
+    touchAction: 'none',
     transition: 'background 0.1s',
   }),
 }
@@ -883,23 +884,25 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsDrawerOpen(false)
   }, [])
 
-  const handleDividerMouseDown = useCallback((e) => {
+  const handleDividerPointerDown = useCallback((e) => {
     e.preventDefault()
     const startY = e.clientY
     const startHeight = inputAreaHeight
     setIsDraggingDivider(true)
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       const delta = startY - ev.clientY
       const newHeight = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, startHeight + delta))
       setInputAreaHeight(newHeight)
     }
-    const onMouseUp = () => {
+    const cleanup = () => {
       setIsDraggingDivider(false)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', cleanup)
+      window.removeEventListener('pointercancel', cleanup)
     }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', cleanup)
+    window.addEventListener('pointercancel', cleanup)
   }, [inputAreaHeight])
 
   const handleSelectConvo = useCallback((convoId) => {
@@ -1289,7 +1292,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         </div>
         {(isNewConvo || (!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive)) && (
           <div
-            onMouseDown={handleDividerMouseDown}
+            onPointerDown={handleDividerPointerDown}
+            data-testid="divider"
             style={s.divider(isDraggingDivider)}
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />

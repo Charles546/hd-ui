@@ -35,12 +35,14 @@ describe('TurnInputArea', () => {
     expect(ta.style.width).toBe('100%')
   })
 
-  it('T1b: footer row has horizontal breathing room and textarea stays full-bleed', () => {
+  it('T1b: footer row has horizontal breathing room, bottom padding, and textarea stays full-bleed', () => {
     render(<TurnInputArea {...baseProps} />)
     const footer = screen.getByTestId('turn-composer-footer')
-    // R1: footer only gets horizontal padding so badges/send have room from the side borders.
+    // R1: footer has horizontal padding for side room and bottom padding
+    // between the badges/button and the strip's bottom border.
     expect(footer.style.paddingLeft).toBe('12px')
     expect(footer.style.paddingRight).toBe('12px')
+    expect(footer.style.paddingBottom).toBe('10px')
 
     // textarea still full-bleed / borderless (no footer padding leaked onto it)
     const ta = screen.getByPlaceholderText('Start a new turn…')
@@ -54,13 +56,29 @@ describe('TurnInputArea', () => {
     const footer = screen.getByTestId('turn-composer-footer')
     const ta = screen.getByPlaceholderText('Start a new turn…')
 
-    // R2: footer pinned to bottom edge and never grows.
-    expect(footer.style.marginTop).toBe('auto')
+    // R2: footer pinned to bottom edge and never grows. The auto margin is
+    // removed so the textarea's flex-grow absorbs all the divider-driven space.
+    expect(footer.style.marginTop).not.toBe('auto')
     expect(footer.style.flexShrink).toBe('0')
 
     // R2: textarea is the flex child that absorbs height changes; no hardcoded height.
     expect(ta.style.flex).toMatch(/^1 /)
     expect(ta.style.height).toBe('')
+  })
+
+  it('T1d: textarea background matches the composer box for a seamless borderless look', () => {
+    render(<TurnInputArea {...baseProps} />)
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+    // #11141c serializes to rgb(17, 20, 28) in jsdom
+    expect(ta.style.backgroundColor).toBe('rgb(17, 20, 28)')
+  })
+
+  it('T1e: engine badge is larger with a rounder pill look', () => {
+    render(<TurnInputArea {...baseProps} />)
+    const badge = screen.getByRole('button', { name: /engine/i })
+    expect(badge.style.padding).toBe('6px 12px')
+    expect(badge.style.fontSize).toBe('12px')
+    expect(badge.style.borderRadius).toBe('14px')
   })
 
   it('T2: footer contains the Engine badge and the circular send button', () => {
