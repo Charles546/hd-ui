@@ -111,7 +111,7 @@ const s = {
     flexShrink: 0,
   },
   mobileColHeader: {
-    padding: '12px 12px',
+    padding: '6px 10px',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
     alignItems: 'center',
@@ -119,7 +119,7 @@ const s = {
     background: '#11141c',
     flexShrink: 0,
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 4,
   },
   colTitleWrap: {
     display: 'flex',
@@ -127,6 +127,10 @@ const s = {
     gap: 8,
     minWidth: 0,
     flex: '1 1 auto',
+  },
+  colTitleWrapMobile: {
+    flex: '0 1 auto',
+    minWidth: 0,
   },
   colControls: {
     display: 'flex',
@@ -136,7 +140,8 @@ const s = {
   mobileColControls: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
+    rowGap: 2,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
   },
@@ -1231,8 +1236,8 @@ export default function ConversationsPage({
       {/* Right column — history */}
       <div style={isMobile ? s.rightColMobile : s.rightCol} data-testid="conversations-right-col">
         <div style={isMobile ? s.mobileColHeader : s.colHeader}>
-          <div style={s.colTitleWrap}>
-            <span style={s.colTitle}>
+          <div style={isMobile ? s.colTitleWrapMobile : s.colTitleWrap}>
+            <span style={isMobile ? { ...s.colTitle, lineHeight: 1.2 } : s.colTitle}>
               {isNewConvo
                 ? 'New Conversation'
                 : selectedConvo
@@ -1241,11 +1246,11 @@ export default function ConversationsPage({
             </span>
           </div>
           <div style={isMobile ? s.mobileColControls : s.colControls}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, ...(isMobile ? { lineHeight: 1.2, whiteSpace: 'nowrap' } : {}) }}>
               <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
               <span>Show tools</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, ...(isMobile ? { lineHeight: 1.2, whiteSpace: 'nowrap' } : {}) }}>
               <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
               <span>Show thoughts</span>
             </label>

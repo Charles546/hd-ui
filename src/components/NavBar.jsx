@@ -119,6 +119,7 @@ export default function NavBar({
   onOpenDrawer,
   onCloseDrawer,
   navCollapsed = false,
+  navRef = null,
 }) {
   const { subject, profileName, role, logout } = useAuth()
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
@@ -147,6 +148,7 @@ export default function NavBar({
 
   return (
     <nav
+      ref={navRef}
       style={{ ...(isMobile ? { ...s.nav, ...s.navMobile } : s.nav), ...navTransform }}
       data-testid="navbar"
     >

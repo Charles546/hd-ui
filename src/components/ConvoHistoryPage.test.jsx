@@ -745,7 +745,7 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('stacks the header controls on mobile so they never overflow', async () => {
+  it('compacts the header into a single row on mobile (title + controls) with minimal padding', async () => {
     installMatchMedia(true)
     const messages = makeMessages([
       { Role: 'user', content: 'Hello' },
@@ -759,12 +759,21 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     })
 
     const header = screen.getByTestId('convo-header')
-    // Mobile header stacks controls (flexDirection column) so they never overflow.
-    expect(header.style.flexDirection).toBe('column')
-    expect(header.style.padding).toBe('10px 12px')
+    // Mobile header is a single compact row (title left, controls right) so it
+    // takes only the space it needs — no "big empty forehead". Controls wrap
+    // only when forced on very narrow screens.
+    expect(header.style.flexDirection).toBe('row')
+    expect(header.style.alignItems).toBe('center')
+    expect(header.style.justifyContent).toBe('space-between')
+    expect(header.style.flexWrap).toBe('wrap')
+    expect(header.style.padding).toBe('6px 10px')
+    expect(header.style.gap).toBe('4px')
+    // Title text uses a tighter line-height so the row stays compact.
+    expect(header.querySelector('span').style.lineHeight).toBe('1.2')
     const controls = header.querySelector('div')
-    // Inner controls wrapper wraps on mobile.
+    // Inner controls wrapper wraps on mobile (only when forced).
     expect(controls.style.flexWrap).toBe('wrap')
+    expect(controls.style.gap).toBe('4px')
 
     const page = screen.getByTestId('convo-history-page')
     // Mobile page uses the dynamic viewport height offset.

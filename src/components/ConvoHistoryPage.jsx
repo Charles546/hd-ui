@@ -86,24 +86,24 @@ const s = {
     overflow: 'hidden',
   },
   colHeaderMobile: {
-    padding: '10px 12px',
+    padding: '6px 10px',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 4,
     background: '#11141c',
     flexShrink: 0,
   },
   colHeaderControlsMobile: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    rowGap: 6,
+    gap: 4,
+    rowGap: 2,
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    width: '100%',
+    justifyContent: 'flex-end',
   },
   historyScrollMobile: {
     flex: 1,
@@ -535,15 +535,15 @@ export default function ConvoHistoryPage({
       <style>{markdownCSS}</style>
       {/* Header */}
       <div style={isMobile ? s.colHeaderMobile : s.colHeader} data-testid="convo-header">
-        <span style={s.colTitle}>
+        <span style={isMobile ? { ...s.colTitle, lineHeight: 1.2 } : s.colTitle}>
           History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
         </span>
         <div style={isMobile ? s.colHeaderControlsMobile : { display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap', ...(isMobile ? { lineHeight: 1.2 } : {}) }}>
             <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
             <span>Show tools</span>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap', ...(isMobile ? { lineHeight: 1.2 } : {}) }}>
             <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
             <span>Show thoughts</span>
           </label>

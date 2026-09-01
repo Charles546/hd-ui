@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import GitHubCallback from './auth/GitHubCallback'
 import SAMLCallback from './auth/SAMLCallback'
@@ -15,10 +15,12 @@ import useMediaQuery from './utils/useMediaQuery'
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
 
-// Height the (mobile) GLOBAL NavBar occupies in the document flow while shown.
-// The pages compensate for it with a CSS var (--nav-h) so that collapsing the
-// NavBar lets the page content grow to reclaim the space exactly.
-const NAV_HEIGHT_PX = 100
+// Fallback only — used until / unless the GLOBAL NavBar can be measured
+// (e.g. before mount, in jsdom where layout is not computed). In the browser
+// the NavBar's real expanded height is measured via a ResizeObserver and fed
+// into --nav-h so the pages sit flush under it with no phantom top band and no
+// overlap when collapsed.
+const NAV_HEIGHT_FALLBACK_PX = 100
 
 const s = {
   main: { maxWidth: 900, margin: '0 auto', padding: '32px 24px' },
@@ -195,6 +197,10 @@ export default function App() {
   // Whether the GLOBAL NavBar is currently auto-hidden (mobile browser
   // address-bar style).
   const [navCollapsed, setNavCollapsed] = useState(false)
+  // Measured expanded height (px) of the GLOBAL NavBar, used to compensate the
+  // page height so it sits flush under the NavBar (no blank band / overlap).
+  const [navHeight, setNavHeight] = useState(NAV_HEIGHT_FALLBACK_PX)
+  const navRef = useRef(null)
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -241,9 +247,24 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty(
       '--nav-h',
-      navCollapsed ? '0px' : `${NAV_HEIGHT_PX}px`
+      navCollapsed ? '0px' : `${navHeight}px`
     )
-  }, [navCollapsed])
+  }, [navCollapsed, navHeight])
+
+  // Measure the global NavBar's real expanded height so the pages sit flush
+  // under it (no phantom blank band when expanded, no overlap when collapsed).
+  // Falls back to NAV_HEIGHT_FALLBACK_PX in jsdom where layout isn't computed.
+  useEffect(() => {
+    const navEl = navRef.current
+    if (!navEl || typeof ResizeObserver === 'undefined') return undefined
+    const update = () => {
+      setNavHeight(Math.max(navEl.offsetHeight, 0))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(navEl)
+    return () => ro.disconnect()
+  }, [])
 
   // Force the NavBar expanded whenever collapse isn't possible: on desktop, on
   // pages that don't host the auto-hide hook, or while the drawer is open.
@@ -374,6 +395,7 @@ export default function App() {
         onOpenDrawer={openDrawer}
         onCloseDrawer={closeDrawer}
         navCollapsed={navCollapsed}
+        navRef={navRef}
       />
       <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobileEdge : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
         {isGitHubSession && view === 'github-events' && (

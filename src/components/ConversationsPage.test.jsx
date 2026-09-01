@@ -905,6 +905,17 @@ describe('ConversationsPage - NavBar collapse wiring', () => {
     const header = container.querySelector('[data-testid="conversations-right-col"] > div')
     expect(header.style.transform).toBe('')
 
+    // Compact header: minimal vertical padding so the history box only takes the
+    // space it needs — no "big empty forehead".
+    expect(parseInt(header.style.paddingTop, 10)).toBeLessThanOrEqual(8)
+    expect(parseInt(header.style.paddingBottom, 10)).toBeLessThanOrEqual(8)
+    // Title wrap no longer grows to fill the row (flexGrow 0) so title +
+    // controls CAN share a single row; wraps only when forced.
+    const titleRow = container.querySelector('[data-testid="conversations-right-col"] > div > div')
+    expect(titleRow.style.flexGrow).toBe('0')
+    // Title text uses a tighter line-height to keep the row compact.
+    expect(titleRow.querySelector('span').style.lineHeight).toBe('1.2')
+
     // Composer never receives any collapse transform.
     const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
     expect(composer.style.transform).toBe('')
