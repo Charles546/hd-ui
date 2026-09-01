@@ -6,6 +6,7 @@ import AgentPickerModal from './AgentPickerModal'
 import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
+import useDividerDrag from '../utils/useDividerDrag'
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
 const POLL_INTERVAL_MS = 10000
@@ -59,8 +60,8 @@ const s = {
     flexShrink: 0,
     overflow: 'hidden',
   },
-  divider: (active) => ({
-    height: 6,
+  divider: (active, isMobile) => ({
+    height: isMobile ? 16 : 6,
     cursor: 'ns-resize',
     background: active ? '#2d3758' : '#141824',
     borderTop: '1px solid #2d3148',
@@ -78,8 +79,8 @@ const s = {
     flexDirection: 'column',
     height: 'calc(100dvh - 100px)',
     minHeight: 400,
-    borderRadius: 10,
-    border: '1px solid #2d3148',
+    borderRadius: 0,
+    border: '0px none',
     background: '#141824',
     overflow: 'hidden',
   },
@@ -190,8 +191,12 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   const [isIdle, setIsIdle] = useState(false)
   const [convoStatus, setConvoStatus] = useState('unknown')
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
-  const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
-  const [isDraggingDivider, setIsDraggingDivider] = useState(false)
+  const {
+    isDragging: isDraggingDivider,
+    dividerRef,
+    dividerHandlers,
+    inputAreaHeight,
+  } = useDividerDrag(MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT, DEFAULT_INPUT_HEIGHT)
   const [engines, setEngines] = useState([])
   const [selectedEngine, setSelectedEngine] = useState('')
   const [currentDriver, setCurrentDriver] = useState('')
@@ -506,26 +511,6 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
     setHistoryError('Conversation expired. Select an agent to revive it.')
   }, [])
 
-  const handleDividerPointerDown = useCallback((e) => {
-    e.preventDefault()
-    const startY = e.clientY
-    const startHeight = inputAreaHeight
-    setIsDraggingDivider(true)
-    const onPointerMove = (ev) => {
-      const delta = startY - ev.clientY
-      const newHeight = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, startHeight + delta))
-      setInputAreaHeight(newHeight)
-    }
-    const cleanup = () => {
-      setIsDraggingDivider(false)
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', cleanup)
-      window.removeEventListener('pointercancel', cleanup)
-    }
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', cleanup)
-    window.addEventListener('pointercancel', cleanup)
-  }, [inputAreaHeight])
 
   const statusColor = STATUS_COLOR[convoStatus] || '#94a3b8'
 
@@ -589,9 +574,10 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       {!isActive && (
         <>
           <div
-            onPointerDown={handleDividerPointerDown}
+            ref={dividerRef}
+            {...dividerHandlers}
             data-testid="divider"
-            style={s.divider(isDraggingDivider)}
+            style={s.divider(isDraggingDivider, isMobile)}
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>

@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import BadgeSelect from './BadgeSelect'
 import CircularSendButton from './CircularSendButton'
+import useMediaQuery from '../utils/useMediaQuery'
 
 const textareaStyle = {
   width: '100%',
@@ -42,6 +43,7 @@ function parseEngineValue(value) {
 
 const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, engines, selectedEngine, onEngineChange }) {
   const [text, setText] = useState('')
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const handleSubmit = () => {
     const trimmed = text.trim()
@@ -52,7 +54,10 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // On desktop Enter submits (Shift+Enter newline). On mobile, soft
+    // keyboards can't do Shift+Enter, so Enter stays a newline and submission
+    // is via the circular send button.
+    if (!isMobile && e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
     }

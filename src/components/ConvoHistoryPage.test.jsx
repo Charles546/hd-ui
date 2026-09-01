@@ -290,7 +290,9 @@ describe('ConvoHistoryPage', () => {
       expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
     })
 
-    // Item 5: divider uses pointer events + touch-action none so touch drag works.
+    // The divider uses pointer events + touch-action none so touch drag works,
+    // and move/up listeners are attached to the divider element (not window) so
+    // the drag continues even when the finger leaves the handle.
     const divider = screen.getByTestId('divider')
     expect(divider).not.toBeNull()
     expect(divider.style.touchAction).toBe('none')
@@ -302,11 +304,42 @@ describe('ConvoHistoryPage', () => {
 
     // Pointer-drag down by 50px -> height grows to 210px (drag uses clientY delta).
     fireEvent.pointerDown(divider, { clientY: 200 })
-    fireEvent.pointerMove(window, { clientY: 150 })
+    fireEvent.pointerMove(divider, { clientY: 150 })
     expect(composer.style.height).toBe('210px')
 
     // Releasing clears the drag state without crashing.
-    fireEvent.pointerUp(window)
+    fireEvent.pointerUp(divider)
+    expect(composer.style.height).toBe('210px')
+  })
+
+  it('touch-drag on the divider resizes the composer via the native non-passive touchmove override', async () => {
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    const { container } = render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const divider = screen.getByTestId('divider')
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer.style.height).toBe('160px')
+
+    // Finger down on the handle (touchstart -> beginDrag attaches the native,
+    // non-passive touchmove listener on the divider element).
+    fireEvent.touchStart(divider, { touches: [{ clientY: 200 }] })
+
+    // Touch move: the native non-passive listener calls preventDefault() (the
+    // robust scroll-capture override for iOS Safari) and resizes the composer.
+    fireEvent.touchMove(divider, { touches: [{ clientY: 150 }], clientY: 150 })
+    expect(composer.style.height).toBe('210px')
+
+    // Finger lift clears the drag without crashing.
+    fireEvent.touchEnd(divider)
     expect(composer.style.height).toBe('210px')
   })
 
@@ -736,12 +769,39 @@ describe('ConvoHistoryPage - Mobile responsiveness', () => {
     const page = screen.getByTestId('convo-history-page')
     // Mobile page uses the dynamic viewport height offset.
     expect(page.style.height).toBe('calc(100dvh - 100px)')
+    // Mobile history box is borderless and square for an edge-to-edge look.
+    expect(page.style.borderStyle).toBe('none')
+    expect(page.style.borderWidth).toBe('0px')
+    expect(page.style.borderRadius).toBe('0px')
 
     const scroll = screen.getByTestId('convo-history-scroll')
     // Mobile history scroll drops the outer horizontal margin so bubbles reach
     // the history-box edge (padding '10px 0').
     expect(scroll.style.paddingLeft).toBe('0px')
     expect(scroll.style.paddingRight).toBe('0px')
+  })
+
+  it('makes the divider thicker on mobile for finger drag', async () => {
+    installMatchMedia(true)
+    // Include a complete agent turn so the conversation is NOT active and the
+    // divider/turn-input strip renders (single user message alone is 'active').
+    const messages = makeMessages([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('divider')).toBeInTheDocument()
+    })
+
+    const divider = screen.getByTestId('divider')
+    // Thicker 16px touch target on mobile (desktop keeps 6px), keep touchAction
+    // none so the browser does not capture the drag for scrolling.
+    expect(parseInt(divider.style.height, 10)).toBeGreaterThanOrEqual(12)
+    expect(divider.style.touchAction).toBe('none')
   })
 
   it('keeps desktop header layout unchanged on non-mobile', async () => {

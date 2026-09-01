@@ -127,4 +127,25 @@ describe('MessageBubble - mobile responsiveness', () => {
     const bubble = screen.getByTestId('msg-bubble')
     expect(bubble.style.maxWidth).toBe('92%')
   })
+
+  it('drops the alignment-side border on mobile so bubbles connect flush to the borderless history box', () => {
+    installMatchMedia(true)
+
+    // Left-aligned agent: top/bottom/right borders stay, left (alignment side) dropped.
+    render(<MessageBubble msg={{ Role: 'agent', content: 'Agent hello' }} />)
+    const agentBubble = screen.getByTestId('msg-bubble')
+    expect(agentBubble.style.borderTopStyle).toBe('solid')
+    expect(agentBubble.style.borderBottomStyle).toBe('solid')
+    expect(agentBubble.style.borderRightStyle).toBe('solid')
+    expect(agentBubble.style.borderLeftStyle).toBe('none')
+
+    cleanup()
+    // Right-aligned user: top/bottom/left borders stay, right (alignment side) dropped.
+    render(<MessageBubble msg={{ Role: 'user', content: 'User hello' }} />)
+    const userBubble = screen.getByTestId('msg-bubble')
+    expect(userBubble.style.borderTopStyle).toBe('solid')
+    expect(userBubble.style.borderBottomStyle).toBe('solid')
+    expect(userBubble.style.borderLeftStyle).toBe('solid')
+    expect(userBubble.style.borderRightStyle).toBe('none')
+  })
 })

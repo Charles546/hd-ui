@@ -1,9 +1,37 @@
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import TurnInputArea from './TurnInputArea'
+
+const originalMatchMedia = window.matchMedia
+
+function installMatchMedia(matches) {
+  const mqls = new Map()
+  window.matchMedia = vi.fn((query) => {
+    if (!mqls.has(query)) {
+      const listeners = new Set()
+      mqls.set(query, {
+        get matches() {
+          return matches
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (type, listener) => {
+          if (type === 'change') listeners.add(listener)
+        },
+        removeEventListener: (type, listener) => {
+          if (type === 'change') listeners.delete(listener)
+        },
+        addListener: (listener) => listeners.add(listener),
+        removeListener: (listener) => listeners.delete(listener),
+      })
+    }
+    return mqls.get(query)
+  })
+}
 
 describe('TurnInputArea', () => {
   beforeEach(() => {
+    installMatchMedia(false) // desktop by default
     // jsdom does not implement showPicker. Provide a function on the
     // prototype (backed by vi.fn) so the badge can call it and we can
     // assert it was invoked.
@@ -12,6 +40,12 @@ describe('TurnInputArea', () => {
       writable: true,
       value: vi.fn(),
     })
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    window.matchMedia = originalMatchMedia
   })
 
   const baseProps = {
@@ -124,5 +158,38 @@ describe('TurnInputArea', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(onSubmit).toHaveBeenCalledWith('hello', 'hy3', 'openai')
     expect(ta.value).toBe('')
+  })
+
+  it('desktop: Enter (no shift) submits and clears text', () => {
+    const onSubmit = vi.fn()
+    render(<TurnInputArea {...baseProps} onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+    fireEvent.change(ta, { target: { value: 'hello' } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    expect(onSubmit).toHaveBeenCalledWith('hello', 'hy3', 'openai')
+    expect(ta.value).toBe('')
+  })
+
+  it('desktop: Shift+Enter inserts a newline without submitting', () => {
+    const onSubmit = vi.fn()
+    render(<TurnInputArea {...baseProps} onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+    fireEvent.change(ta, { target: { value: 'hello' } })
+    fireEvent.keyDown(ta, { key: 'Enter', shiftKey: true })
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(ta.value).toBe('hello')
+  })
+
+  it('mobile: Enter inserts a newline without submitting (submit via circular button)', () => {
+    installMatchMedia(true)
+    const onSubmit = vi.fn()
+    render(<TurnInputArea {...baseProps} onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+    fireEvent.change(ta, { target: { value: 'hello' } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    // On mobile the handler does NOT intercept Enter, so no submit happens and
+    // the textarea's native default inserts a newline.
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(ta.value).toBe('hello')
   })
 })

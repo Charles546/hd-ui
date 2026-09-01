@@ -292,7 +292,9 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
       expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
     })
 
-    // Item 5: divider uses pointer events + touch-action none so touch drag works.
+    // The divider uses pointer events + touch-action none so touch drag works,
+    // and move/up listeners are attached to the divider element (not window) so
+    // the drag continues even when the finger leaves the handle.
     const divider = screen.getByTestId('divider')
     expect(divider).not.toBeNull()
     expect(divider.style.touchAction).toBe('none')
@@ -304,11 +306,50 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
 
     // Pointer-drag down by 50px -> height grows to 210px (drag uses clientY delta).
     fireEvent.pointerDown(divider, { clientY: 200 })
-    fireEvent.pointerMove(window, { clientY: 150 })
+    fireEvent.pointerMove(divider, { clientY: 150 })
     expect(composer.style.height).toBe('210px')
 
     // Releasing clears the drag state without crashing.
-    fireEvent.pointerUp(window)
+    fireEvent.pointerUp(divider)
+    expect(composer.style.height).toBe('210px')
+  })
+
+  it('touch-drag on the divider resizes the turn composer via the native non-passive touchmove override', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    const { container } = render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    const convoCard = screen.getByText('convo-123')
+    fireEvent.click(convoCard)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const divider = screen.getByTestId('divider')
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer.style.height).toBe('160px')
+
+    // Finger down on the handle (touchstart -> beginDrag attaches the native,
+    // non-passive touchmove listener on the divider element).
+    fireEvent.touchStart(divider, { touches: [{ clientY: 200 }] })
+
+    // Touch move: the native non-passive listener calls preventDefault() (the
+    // robust scroll-capture override for iOS Safari) and resizes the composer.
+    fireEvent.touchMove(divider, { touches: [{ clientY: 150 }], clientY: 150 })
+    expect(composer.style.height).toBe('210px')
+
+    // Finger lift clears the drag without crashing.
+    fireEvent.touchEnd(divider)
     expect(composer.style.height).toBe('210px')
   })
 })
@@ -582,5 +623,37 @@ describe('ConversationsPage - Mobile Drawer', () => {
     expect(header.style.flexWrap).toBe('')
     const controls = screen.getByTestId('drawer-controls')
     expect(controls.style.flexWrap).toBe('')
+  })
+
+  it('mobile: history right column is borderless and the divider is thicker for finger drag', async () => {
+    installMatchMedia(true)
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+
+    render(<ConversationsPage initialConvoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Right column is edge-to-edge borderless on mobile (matches the removed
+    // <main> padding so the history box reaches the screen edge).
+    const rightCol = screen.getByTestId('conversations-right-col')
+    expect(rightCol.style.borderStyle).toBe('none')
+    expect(rightCol.style.borderWidth).toBe('0px')
+    expect(rightCol.style.borderRadius).toBe('0px')
+
+    // The divider is thicker (16px) on mobile for easier finger grabs, but
+    // still overrides the browser's touch-scroll capture with touchAction none.
+    await waitFor(() => {
+      expect(screen.getByTestId('divider')).toBeInTheDocument()
+    })
+    const divider = screen.getByTestId('divider')
+    expect(parseInt(divider.style.height, 10)).toBeGreaterThanOrEqual(12)
+    expect(divider.style.touchAction).toBe('none')
   })
 })
