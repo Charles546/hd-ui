@@ -15,6 +15,11 @@ import useMediaQuery from './utils/useMediaQuery'
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
 
+// Height the (mobile) GLOBAL NavBar occupies in the document flow while shown.
+// The pages compensate for it with a CSS var (--nav-h) so that collapsing the
+// NavBar lets the page content grow to reclaim the space exactly.
+const NAV_HEIGHT_PX = 100
+
 const s = {
   main: { maxWidth: 900, margin: '0 auto', padding: '32px 24px' },
   mainWide: { maxWidth: 1400, margin: '0 auto', padding: '16px 24px' },
@@ -185,6 +190,11 @@ export default function App() {
   const [logProviderData, setLogProviderData] = useState(() => parseRouteLocation().providerData || null)
   const [logStreamToken, setLogStreamToken] = useState(() => parseRouteLocation().streamToken || '')
   const [showGlobalEventsTab, setShowGlobalEventsTab] = useState(true)
+  // Drawer state is lifted to App so the global NavBar badge can open/toggle it.
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  // Whether the GLOBAL NavBar is currently auto-hidden (mobile browser
+  // address-bar style).
+  const [navCollapsed, setNavCollapsed] = useState(false)
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -216,6 +226,32 @@ export default function App() {
       setView('events')
     }
   }, [isGitHubSession, view])
+
+  // Close the drawer whenever we leave the conversations view, so stale open
+  // state can never disable the NavBar collapse on another page.
+  useEffect(() => {
+    if (view !== 'conversations') {
+      setIsDrawerOpen(false)
+    }
+  }, [view])
+
+  // Drive the page-height CSS var that compensates for the GLOBAL NavBar. When
+  // the NavBar collapses the var goes to 0 so the page content expands to fill
+  // the reclaimed space (no blank gap).
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--nav-h',
+      navCollapsed ? '0px' : `${NAV_HEIGHT_PX}px`
+    )
+  }, [navCollapsed])
+
+  // Force the NavBar expanded whenever collapse isn't possible: on desktop, on
+  // pages that don't host the auto-hide hook, or while the drawer is open.
+  useEffect(() => {
+    if (!isMobile || isDrawerOpen || (view !== 'conversations' && view !== 'focus')) {
+      setNavCollapsed(false)
+    }
+  }, [isMobile, isDrawerOpen, view])
 
   useEffect(() => {
     setShowGlobalEventsTab(true)
@@ -269,6 +305,9 @@ export default function App() {
 
   const handleViewChange = (nextView) => {
     setView(nextView)
+    if (nextView !== 'conversations') {
+      setIsDrawerOpen(false)
+    }
   }
 
   const handleEventsForbidden = () => {
@@ -280,10 +319,12 @@ export default function App() {
 
   const openGitHubSecrets = () => {
     setView('github-secrets')
+    setIsDrawerOpen(false)
   }
 
   const openGitHubEvents = () => {
     setView('github-events')
+    setIsDrawerOpen(false)
   }
 
   const openLogStream = ({ provider, podID, providerData = null, ghSlug: targetGhSlug = '', streamToken = '' }) => {
@@ -295,6 +336,7 @@ export default function App() {
       setGhSlug(targetGhSlug)
     }
     setView('log-stream')
+    setIsDrawerOpen(false)
   }
 
   const showGitHubEventsTab = isGitHubSession
@@ -308,7 +350,15 @@ export default function App() {
   const handleFocusMode = (nextConvoId) => {
     setConvoId(nextConvoId)
     setView('focus')
+    setIsDrawerOpen(false)
   }
+
+  const openDrawer = () => setIsDrawerOpen(true)
+  const closeDrawer = () => setIsDrawerOpen(false)
+
+  // Don't collapse the NavBar behind/over the open drawer, and never collapse
+  // on desktop.
+  const allowNavCollapse = isMobile && !isDrawerOpen
 
   return (
     <>
@@ -320,6 +370,10 @@ export default function App() {
         showGitHubSecretsTab={showGitHubEventsTab}
         showConversationsTab={showGlobalEventsTab}
         showTabs={view !== 'focus'}
+        isDrawerOpen={isDrawerOpen}
+        onOpenDrawer={openDrawer}
+        onCloseDrawer={closeDrawer}
+        navCollapsed={navCollapsed}
       />
       <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobileEdge : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
         {isGitHubSession && view === 'github-events' && (
@@ -350,12 +404,18 @@ export default function App() {
             initialConvoId={convoId}
             onConvoIdChange={setConvoId}
             onFocusMode={handleFocusMode}
+            isDrawerOpen={isDrawerOpen}
+            onCloseDrawer={closeDrawer}
+            allowNavCollapse={allowNavCollapse}
+            onNavCollapsedChange={setNavCollapsed}
           />
         )}
         {view === 'focus' && (
           <ConvoHistoryPage
             convoId={convoId}
             onNavigateToConvo={handleNavigateToConvo}
+            allowNavCollapse={allowNavCollapse}
+            onNavCollapsedChange={setNavCollapsed}
           />
         )}
         {view !== 'conversations' && view !== 'focus' && (!isGitHubSession || (view !== 'github-events' && view !== 'github-secrets')) && (

@@ -47,7 +47,7 @@ const s = {
     position: 'relative',
     display: 'flex',
     gap: 0,
-    height: 'calc(100vh - 130px)',
+    height: 'calc(100dvh - var(--nav-h, 100px))',
     minHeight: 400,
   },
   leftCol: {
@@ -110,42 +110,17 @@ const s = {
     background: '#11141c',
     flexShrink: 0,
   },
-  mobileHeaderWrap: (collapsed) => ({
-    flexShrink: 0,
-    overflow: 'hidden',
-    background: '#11141c',
+  mobileColHeader: {
+    padding: '12px 12px',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
-    flexDirection: 'column',
-    maxHeight: collapsed ? 0 : 220,
-    transition: 'max-height 0.25s ease',
-    minHeight: 0,
-  }),
-  mobileTitleBar: (collapsed) => ({
-    padding: '10px 12px 4px 12px',
-    display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     background: '#11141c',
     flexShrink: 0,
-    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
-    transition: 'transform 0.25s ease',
-    minWidth: 0,
-  }),
-  mobileNavBar: (collapsed) => ({
-    padding: '4px 12px 10px 12px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    rowGap: 6,
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    width: '100%',
-    background: '#11141c',
-    flexShrink: 0,
-    transform: collapsed ? 'translateY(-100%)' : 'translateY(0)',
-    transition: 'transform 0.25s ease',
-  }),
+    gap: 8,
+  },
   colTitleWrap: {
     display: 'flex',
     alignItems: 'center',
@@ -157,6 +132,13 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+  },
+  mobileColControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   drawerHeaderMobile: {
     padding: '10px 12px',
@@ -563,7 +545,15 @@ function buildConvoTree(convos) {
   return roots.map((c) => ({ convo: c, children: childrenMap.get(c.convo_id) || [] }))
 }
 
-export default function ConversationsPage({ initialConvoId = '', onConvoIdChange = () => {}, onFocusMode = () => {} }) {
+export default function ConversationsPage({
+  initialConvoId = '',
+  onConvoIdChange = () => {},
+  onFocusMode = () => {},
+  isDrawerOpen = false,
+  onCloseDrawer = () => {},
+  allowNavCollapse = false,
+  onNavCollapsedChange = () => {},
+}) {
   const { creds } = useAuth()
   const [convos, setConvos] = useState([])
   const [selectedID, setSelectedID] = useState(initialConvoId || null)
@@ -606,19 +596,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     inputAreaHeight,
     inputAreaStyle: dividerInputAreaStyle,
   } = useDividerDrag(MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT, DEFAULT_INPUT_HEIGHT)
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
-
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [showAgentPicker, setShowAgentPicker] = useState(false)
-  const [headersCollapsed, setHeadersCollapsed] = useState(false)
   const historyScrollRef = useRef(null)
-  // Auto-hide the title bar + nav bar on forward scroll, mobile-browser
-  // address-bar style. Paused while the drawer or a modal is open.
-  useAutoHideHeader({
-    containerRef: historyScrollRef,
-    active: isMobile && !isDrawerOpen && !showAgentPicker,
-    onCollapsedChange: setHeadersCollapsed,
-  })
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -626,9 +604,21 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const wasIdleRef = useRef(false)
   const wasHistoryIdleRef = useRef(false)
 
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+
   // Agent picker state for recovery
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [pendingTurn, setPendingTurn] = useState(null)
   const [agentMetadata, setAgentMetadata] = useState({})
+
+  // Drive the GLOBAL NavBar collapse from this page's history scroll (mobile
+  // browser address-bar style). Paused while the drawer, agent picker, desktop,
+  // or NavBar-disabling conditions are active.
+  useAutoHideHeader({
+    containerRef: historyScrollRef,
+    active: isMobile && allowNavCollapse && !showAgentPicker,
+    onCollapsedChange: onNavCollapsedChange,
+  })
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
@@ -770,23 +760,19 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     }
   }, [initialConvoId])
 
-  // Auto-open the drawer on mobile when no conversation is selected; close it
-  // whenever we leave the mobile layout.
+  // Close the drawer whenever we leave the mobile layout. Opening is owned by
+  // the global NavBar badge (lifted to App).
   useEffect(() => {
     if (!isMobile) {
-      setIsDrawerOpen(false)
-      return
+      onCloseDrawer()
     }
-    if (!selectedID && !isNewConvo) {
-      setIsDrawerOpen(true)
-    }
-  }, [isMobile, selectedID, isNewConvo])
+  }, [isMobile, onCloseDrawer])
 
   // Escape closes the drawer on mobile.
   useEffect(() => {
     if (!isMobile || !isDrawerOpen) return undefined
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsDrawerOpen(false)
+      if (e.key === 'Escape') onCloseDrawer()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -905,7 +891,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       await fetchConvos('poll')
       if (result?.convo_id) {
         setSelectedID(result.convo_id)
-        setIsDrawerOpen(false)
+        onCloseDrawer()
       }
     } catch (err) {
       setError(err.message)
@@ -918,20 +904,20 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsNewConvo(true)
     setSelectedID(null)
     setHistory([])
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
   const handleNavigateToSubAgent = useCallback((convoId) => {
     setSelectedID(convoId)
     setIsNewConvo(false)
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
 
   const handleSelectConvo = useCallback((convoId) => {
     setIsNewConvo(false)
     setSelectedID(convoId)
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
   // Handle agent selection from picker (recovery flow)
@@ -1149,7 +1135,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             {isMobile && (
               <button
                 style={s.drawerCloseBtn}
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={onCloseDrawer}
                 aria-label="Close conversation list"
               >
                 ✕
@@ -1235,7 +1221,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       {isMobile && isDrawerOpen && (
         <div
           style={s.backdrop}
-          onClick={() => setIsDrawerOpen(false)}
+          onClick={onCloseDrawer}
           role="presentation"
           aria-hidden="true"
           data-testid="conversation-drawer-backdrop"
@@ -1244,82 +1230,37 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
 
       {/* Right column — history */}
       <div style={isMobile ? s.rightColMobile : s.rightCol} data-testid="conversations-right-col">
-        {isMobile ? (
-          <div style={s.mobileHeaderWrap(headersCollapsed)} data-testid="conversations-header">
-            <div style={{ ...s.mobileTitleBar(headersCollapsed), justifyContent: 'space-between' }} data-testid="conversations-title-bar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <button
-                  style={{ ...s.hamburger, position: 'relative', zIndex: 2 }}
-                  onClick={() => setIsDrawerOpen(true)}
-                  aria-label="Open conversation list"
-                  aria-expanded={isDrawerOpen}
-                  aria-controls="conversation-list-panel"
-                >
-                  ☰
-                </button>
-                <span style={s.colTitle}>
-                  {isNewConvo
-                    ? 'New Conversation'
-                    : selectedConvo
-                      ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
-                      : 'History'}
-                </span>
-              </div>
-            </div>
-            <div style={{ ...s.mobileNavBar(headersCollapsed), justifyContent: 'flex-end' }} data-testid="conversations-nav-bar">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-                <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
-                <span>Show tools</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-                <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-                <span>Show thoughts</span>
-              </label>
-              {isSelectedConvoActive && (
-                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
-                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
-                </button>
-              )}
-              {selectedID && (
-                <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
-                  ⧉ Focus mode
-                </button>
-              )}
-            </div>
+        <div style={isMobile ? s.mobileColHeader : s.colHeader}>
+          <div style={s.colTitleWrap}>
+            <span style={s.colTitle}>
+              {isNewConvo
+                ? 'New Conversation'
+                : selectedConvo
+                  ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
+                  : 'History'}
+            </span>
           </div>
-        ) : (
-          <div style={s.colHeader}>
-            <div style={s.colTitleWrap}>
-              <span style={s.colTitle}>
-                {isNewConvo
-                  ? 'New Conversation'
-                  : selectedConvo
-                    ? <>History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(selectedID)}</span></>
-                    : 'History'}
-              </span>
-            </div>
-            <div style={s.colControls}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-                <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
-                <span>Show tools</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-                <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-                <span>Show thoughts</span>
-              </label>
-              {isSelectedConvoActive && (
-                <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
-                  {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
-                </button>
-              )}
-              {selectedID && (
-                <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
-                  ⧉ Focus mode
-                </button>
-              )}
-            </div>
+          <div style={isMobile ? s.mobileColControls : s.colControls}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+              <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+              <span>Show tools</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+              <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+              <span>Show thoughts</span>
+            </label>
+            {isSelectedConvoActive && (
+              <button style={s.btn} onClick={() => setIsHistoryPaused((v) => !v)}>
+                {isHistoryPaused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+            )}
+            {selectedID && (
+              <button style={s.btn} onClick={() => onFocusMode(selectedID)}>
+                ⧉ Focus mode
+              </button>
+            )}
           </div>
-        )}
+        </div>
         <div ref={historyScrollRef} style={s.historyScroll} data-testid="conversations-history-scroll">
           {isNewConvo && (
             <div style={s.empty}>Select an agent and type your first message below</div>

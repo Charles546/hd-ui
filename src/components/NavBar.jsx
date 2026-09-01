@@ -21,6 +21,14 @@ const s = {
   navMobile: {
     padding: '8px 12px', minHeight: 0,
   },
+  navCollapsed: {
+    transform: 'translateY(-100%)',
+    transition: 'transform 0.25s ease',
+  },
+  navExpanded: {
+    transform: 'translateY(0)',
+    transition: 'transform 0.25s ease',
+  },
   left: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 },
   leftMobile: {
     width: '100%',
@@ -92,6 +100,11 @@ const s = {
   btnMobile: {
     padding: '8px 14px',
   },
+  hamburger: {
+    fontSize: 13,
+    lineHeight: 1,
+    marginRight: 2,
+  },
 }
 
 export default function NavBar({
@@ -102,6 +115,10 @@ export default function NavBar({
   showGitHubSecretsTab = false,
   showConversationsTab = false,
   showTabs = true,
+  isDrawerOpen = false,
+  onOpenDrawer,
+  onCloseDrawer,
+  navCollapsed = false,
 }) {
   const { subject, profileName, role, logout } = useAuth()
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
@@ -110,8 +127,29 @@ export default function NavBar({
 
   const tabProps = (active) => (isMobile ? s.linkMobile(active) : s.link(active))
 
+  // On mobile only, the Conversations badge merges the ☰ hamburger so a single
+  // tap navigates to conversations and opens the conversation drawer (or
+  // toggles it when already in conversations). Desktop keeps a plain view
+  // switch.
+  const handleConversationsClick = () => {
+    if (!showConversationsTab) return
+    if (view !== 'conversations') {
+      onViewChange?.('conversations')
+      onOpenDrawer?.()
+    } else if (isDrawerOpen) {
+      onCloseDrawer?.()
+    } else {
+      onOpenDrawer?.()
+    }
+  }
+
+  const navTransform = isMobile ? (navCollapsed ? s.navCollapsed : s.navExpanded) : {}
+
   return (
-    <nav style={isMobile ? { ...s.nav, ...s.navMobile } : s.nav} data-testid="navbar">
+    <nav
+      style={{ ...(isMobile ? { ...s.nav, ...s.navMobile } : s.nav), ...navTransform }}
+      data-testid="navbar"
+    >
       <div style={isMobile ? { ...s.left, ...s.leftMobile } : s.left}>
         <HdLogo size={isMobile ? 24 : 28} />
         <span style={isMobile ? { ...s.brand, ...s.brandMobile } : s.brand}>Honeydipper</span>
@@ -127,7 +165,14 @@ export default function NavBar({
               <button style={tabProps(view === 'github-secrets')} onClick={() => onViewChange('github-secrets')}>Script Secrets</button>
             )}
             {showConversationsTab && (
-              <button style={tabProps(view === 'conversations')} onClick={() => onViewChange('conversations')}>Conversations</button>
+              <button
+                style={tabProps(view === 'conversations')}
+                onClick={handleConversationsClick}
+                data-testid="conversations-badge"
+              >
+                {isMobile && <span aria-hidden="true" style={s.hamburger}>☰</span>}
+                Conversations
+              </button>
             )}
           </div>
         )}
