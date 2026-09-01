@@ -99,8 +99,16 @@ describe('App - mobile shell', () => {
 
     const main = document.querySelector('main')
     expect(main).toBeTruthy()
-    // Edge-to-edge: no outer margin including the bottom part.
-    expect(main.style.padding).toBe('0px')
+    // Edge-to-edge: no outer horizontal/bottom margin. The top is reserved for
+    // the OUT-OF-FLOW GLOBAL NavBar via --nav-h (0 when collapsed), so the page
+    // starts at the true screen top when the navbar is hidden.
+    expect(main.style.paddingTop).toBe('var(--nav-h, 0px)')
+    expect(main.style.paddingRight).toBe('')
+    expect(main.style.paddingBottom).toBe('')
+    expect(main.style.paddingLeft).toBe('')
+    // NavBar is out-of-flow (fixed) on mobile conversations so it cannot reserve
+    // its box in the document flow (no wasted band above the history header).
+    expect(document.querySelector('[data-testid="navbar"]').style.position).toBe('fixed')
   })
 
   it('removes main padding on mobile for focus view (edge-to-edge)', () => {
@@ -110,7 +118,11 @@ describe('App - mobile shell', () => {
 
     const main = document.querySelector('main')
     expect(main).toBeTruthy()
-    expect(main.style.padding).toBe('0px')
+    expect(main.style.paddingTop).toBe('var(--nav-h, 0px)')
+    expect(main.style.paddingRight).toBe('')
+    expect(main.style.paddingBottom).toBe('')
+    expect(main.style.paddingLeft).toBe('')
+    expect(document.querySelector('[data-testid="navbar"]').style.position).toBe('fixed')
   })
 
   it('applies reduced padding on mobile for the default events view', () => {
@@ -131,6 +143,8 @@ describe('App - mobile shell', () => {
     const main = document.querySelector('main')
     expect(main).toBeTruthy()
     expect(main.style.padding).toBe('16px 24px')
+    // Desktop: NavBar stays sticky in-flow, never fixed/overlay.
+    expect(document.querySelector('[data-testid="navbar"]').style.position).toBe('sticky')
   })
 
   it('keeps desktop padding unchanged on the default events view', () => {
@@ -205,11 +219,19 @@ describe('App - NavBar + drawer + collapse wiring', () => {
     const nav = document.querySelector('[data-testid="navbar"]')
     expect(nav.style.transform).toContain('translateY(0)')
 
+    // <main> reserves the navbar slot via --nav-h so the out-of-flow (fixed)
+    // navbar never pushes the page down (no wasted band above the history box).
+    const main = document.querySelector('main')
+    expect(main.style.paddingTop).toBe('var(--nav-h, 0px)')
+
     // Page scrolls down → App collapses the GLOBAL NavBar.
     act(() => {
       conversationsProps.onNavCollapsedChange(true)
     })
     expect(getNavVar()).toBe('0px')
+    // --nav-h → 0px means the paddingTop collapses to zero, so the page rises
+    // to the very top edge of the screen in sync with the navbar's transform.
+    expect(main.style.paddingTop).toBe('var(--nav-h, 0px)')
     expect(nav.style.transform).toContain('translateY(-100%)')
 
     // Reaching the top → NavBar expands again and the height var is restored.

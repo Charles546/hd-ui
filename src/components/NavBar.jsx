@@ -29,6 +29,16 @@ const s = {
     transform: 'translateY(0)',
     transition: 'transform 0.25s ease',
   },
+  navOverlay: {
+    // Out-of-flow overlay used ONLY on mobile conversations/focus: the navbar
+    // no longer reserves its box in the document flow, so the page can start at
+    // the true screen top (its slot is reserved by <main> via --nav-h padding).
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
   left: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 },
   leftMobile: {
     width: '100%',
@@ -120,6 +130,7 @@ export default function NavBar({
   onCloseDrawer,
   navCollapsed = false,
   navRef = null,
+  overlay = false,
 }) {
   const { subject, profileName, role, logout } = useAuth()
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
@@ -145,11 +156,12 @@ export default function NavBar({
   }
 
   const navTransform = isMobile ? (navCollapsed ? s.navCollapsed : s.navExpanded) : {}
+  const overlayStyle = overlay && isMobile ? s.navOverlay : {}
 
   return (
     <nav
       ref={navRef}
-      style={{ ...(isMobile ? { ...s.nav, ...s.navMobile } : s.nav), ...navTransform }}
+      style={{ ...(isMobile ? { ...s.nav, ...s.navMobile } : s.nav), ...overlayStyle, ...navTransform }}
       data-testid="navbar"
     >
       <div style={isMobile ? { ...s.left, ...s.leftMobile } : s.left}>

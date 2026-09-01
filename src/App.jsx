@@ -34,7 +34,13 @@ const s = {
   mainMobileEdge: {
     maxWidth: 1400,
     margin: '0 auto',
-    padding: 0,
+    // The global NavBar is OUT OF FLOW (position: fixed) on mobile
+    // conversations/focus, so <main> starts at the true screen top. Reserve the
+    // navbar's slot with a top padding that tracks --nav-h (0 when collapsed) so
+    // the page slides up in sync with the navbar's collapse transform (no wasted
+    // band above the history box). Horizontal/bottom padding stay 0.
+    paddingTop: 'var(--nav-h, 0px)',
+    transition: 'padding-top 0.25s ease',
     minWidth: 0,
   },
 }
@@ -396,6 +402,7 @@ export default function App() {
         onCloseDrawer={closeDrawer}
         navCollapsed={navCollapsed}
         navRef={navRef}
+        overlay={isMobile && (view === 'conversations' || view === 'focus')}
       />
       <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobileEdge : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
         {isGitHubSession && view === 'github-events' && (

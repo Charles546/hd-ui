@@ -8,6 +8,13 @@
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+      /* Registered length so --nav-h can transition (in sync with the navbar's
+         0.25s collapse transform) and interpolate inside calc() smoothly. */
+      @property --nav-h {
+        syntax: '<length>';
+        inherits: true;
+        initial-value: 0px;
+      }
       .md-content { font-size: 13px; color: #cbd5e1; line-height: 1.6; }
       .md-content p { margin-bottom: 8px; }
       .md-content p:last-child { margin-bottom: 0; }
