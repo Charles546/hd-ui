@@ -13,6 +13,7 @@ import {
 import AgentPickerModal from './AgentPickerModal'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
+import useDividerDrag from '../utils/useDividerDrag'
 
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
@@ -286,13 +287,13 @@ const s = {
     marginTop: 4,
   },
   turnInputArea: {
-    padding: '10px 16px',
-    borderTop: '1px solid #2d3148',
+    padding: 0,
+    borderTop: '0px none',
     background: '#11141c',
     flexShrink: 0,
   },
-  divider: (active) => ({
-    height: 6,
+  divider: (active, isMobile) => ({
+    height: isMobile ? 16 : 6,
     cursor: 'ns-resize',
     background: active ? '#2d3758' : '#141824',
     borderTop: '1px solid #2d3148',
@@ -302,8 +303,18 @@ const s = {
     alignItems: 'center',
     justifyContent: 'center',
     userSelect: 'none',
+    touchAction: 'none',
     transition: 'background 0.1s',
   }),
+  rightColMobile: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    borderRadius: 0,
+    border: '0px none',
+    background: '#141824',
+    overflow: 'hidden',
+  },
 }
 
 function fmtTime(ts) {
@@ -569,8 +580,13 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [showSubAgents, setShowSubAgents] = useState(false)
   const [showArchivedGroups, setShowArchivedGroups] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
-  const [inputAreaHeight, setInputAreaHeight] = useState(DEFAULT_INPUT_HEIGHT)
-  const [isDraggingDivider, setIsDraggingDivider] = useState(false)
+  const {
+    isDragging: isDraggingDivider,
+    dividerRef,
+    dividerHandlers,
+    inputAreaHeight,
+    inputAreaStyle: dividerInputAreaStyle,
+  } = useDividerDrag(MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT, DEFAULT_INPUT_HEIGHT)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
@@ -883,24 +899,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsDrawerOpen(false)
   }, [])
 
-  const handleDividerMouseDown = useCallback((e) => {
-    e.preventDefault()
-    const startY = e.clientY
-    const startHeight = inputAreaHeight
-    setIsDraggingDivider(true)
-    const onMouseMove = (ev) => {
-      const delta = startY - ev.clientY
-      const newHeight = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, startHeight + delta))
-      setInputAreaHeight(newHeight)
-    }
-    const onMouseUp = () => {
-      setIsDraggingDivider(false)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }, [inputAreaHeight])
 
   const handleSelectConvo = useCallback((convoId) => {
     setIsNewConvo(false)
@@ -1217,7 +1215,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       )}
 
       {/* Right column — history */}
-      <div style={s.rightCol}>
+      <div style={isMobile ? s.rightColMobile : s.rightCol} data-testid="conversations-right-col">
         <div style={isMobile ? s.mobileColHeader : s.colHeader}>
           <div style={s.colTitleWrap}>
             {isMobile && (
@@ -1289,14 +1287,16 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
         </div>
         {(isNewConvo || (!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive)) && (
           <div
-            onMouseDown={handleDividerMouseDown}
-            style={s.divider(isDraggingDivider)}
+            ref={dividerRef}
+            {...dividerHandlers}
+            data-testid="divider"
+            style={s.divider(isDraggingDivider, isMobile)}
           >
             <div style={{ width: 24, height: 2, borderRadius: 1, background: isDraggingDivider ? '#6b7db3' : '#4d5880' }} />
           </div>
         )}
         {isNewConvo && (
-          <div style={{ height: inputAreaHeight, flexShrink: 0, overflow: 'hidden' }}>
+          <div data-testid="new-convo-input-area" style={dividerInputAreaStyle}>
             <NewConvoInput
               agents={agents}
               selectedAgent={selectedAgent}
@@ -1306,18 +1306,16 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               onEngineChange={setSelectedEngine}
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
-              inputHeight={inputAreaHeight - 20}
             />
           </div>
         )}
         {!isNewConvo && selectedConvo && isTopLevelConvo && !isSelectedConvoActive && (
-          <div style={{ ...s.turnInputArea, height: inputAreaHeight }}>
+          <div data-testid="convo-turn-input-area" style={{ ...s.turnInputArea, height: inputAreaHeight }}>
             <TurnInputArea
               onSubmit={handleSendTurn}
               isSending={isSendingTurn}
               placeholder="Start a new turn…"
               buttonLabel="Send"
-              inputHeight={inputAreaHeight - 20}
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}

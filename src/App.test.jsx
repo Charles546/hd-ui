@@ -68,14 +68,25 @@ describe('App - mobile shell', () => {
     sessionStorage.clear()
   })
 
-  it('applies reduced horizontal padding on mobile for conversations view', () => {
+  it('removes main padding on mobile for conversations view (edge-to-edge)', () => {
     installMatchMedia(true)
     window.history.pushState({}, '', '/conversations')
     render(<App />)
 
     const main = document.querySelector('main')
     expect(main).toBeTruthy()
-    expect(main.style.padding).toBe('12px 8px')
+    // Edge-to-edge: no outer margin including the bottom part.
+    expect(main.style.padding).toBe('0px')
+  })
+
+  it('removes main padding on mobile for focus view (edge-to-edge)', () => {
+    installMatchMedia(true)
+    window.history.pushState({}, '', '/focus/convo-123')
+    render(<App />)
+
+    const main = document.querySelector('main')
+    expect(main).toBeTruthy()
+    expect(main.style.padding).toBe('0px')
   })
 
   it('applies reduced padding on mobile for the default events view', () => {

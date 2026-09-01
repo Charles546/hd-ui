@@ -24,6 +24,12 @@ const s = {
     padding: '12px 8px',
     minWidth: 0,
   },
+  mainMobileEdge: {
+    maxWidth: 1400,
+    margin: '0 auto',
+    padding: 0,
+    minWidth: 0,
+  },
 }
 
 function parseProviderDataQuery(raw) {
@@ -315,7 +321,7 @@ export default function App() {
         showConversationsTab={showGlobalEventsTab}
         showTabs={view !== 'focus'}
       />
-      <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobile : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
+      <main style={view === 'conversations' || view === 'focus' ? (isMobile ? s.mainMobileEdge : s.mainWide) : (isMobile ? { ...s.mainMobile, maxWidth: 900 } : s.main)}>
         {isGitHubSession && view === 'github-events' && (
           <GitHubWorkflowList
             ghSlug={ghSlug}
