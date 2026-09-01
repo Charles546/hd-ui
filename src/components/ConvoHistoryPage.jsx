@@ -7,6 +7,7 @@ import { MessageBubble, truncateID, markdownCSS } from './MessageBubble'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
 import useDividerDrag from '../utils/useDividerDrag'
+import useAutoHideHeader from '../utils/useAutoHideHeader'
 
 const MOBILE_BREAKPOINT = '(max-width: 768px)'
 const POLL_INTERVAL_MS = 10000
@@ -77,7 +78,7 @@ const s = {
   pageMobile: {
     display: 'flex',
     flexDirection: 'column',
-    height: 'calc(100dvh - 100px)',
+    height: 'calc(100dvh - var(--nav-h, 100px))',
     minHeight: 400,
     borderRadius: 0,
     border: '0px none',
@@ -85,24 +86,24 @@ const s = {
     overflow: 'hidden',
   },
   colHeaderMobile: {
-    padding: '10px 12px',
+    padding: '6px 10px',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 4,
     background: '#11141c',
     flexShrink: 0,
   },
   colHeaderControlsMobile: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    rowGap: 6,
+    gap: 4,
+    rowGap: 2,
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    width: '100%',
+    justifyContent: 'flex-end',
   },
   historyScrollMobile: {
     flex: 1,
@@ -178,7 +179,12 @@ function deriveConvoStatus(convoState, history) {
   return getConvoStatus(history)
 }
 
-export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
+export default function ConvoHistoryPage({
+  convoId,
+  onNavigateToConvo,
+  allowNavCollapse = false,
+  onNavCollapsedChange = () => {},
+}) {
   const { creds } = useAuth()
   const [history, setHistory] = useState([])
   const [convoState, setConvoState] = useState(null)
@@ -207,6 +213,16 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
   // Agent picker state
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [pendingTurn, setPendingTurn] = useState(null)
+
+  // Drive the GLOBAL NavBar collapse from this page's history scroll (mobile
+  // browser address-bar style). Paused while the agent picker is open, on
+  // desktop, or when App disables NavBar collapse.
+  const historyScrollRef = useRef(null)
+  useAutoHideHeader({
+    containerRef: historyScrollRef,
+    active: isMobile && allowNavCollapse && !showAgentPicker,
+    onCollapsedChange: onNavCollapsedChange,
+  })
 
   const timerRef = useRef(null)
   const convoStateTimerRef = useRef(null)
@@ -519,15 +535,15 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       <style>{markdownCSS}</style>
       {/* Header */}
       <div style={isMobile ? s.colHeaderMobile : s.colHeader} data-testid="convo-header">
-        <span style={s.colTitle}>
+        <span style={isMobile ? { ...s.colTitle, lineHeight: 1.2 } : s.colTitle}>
           History — <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#94a3b8' }}>{truncateID(convoId)}</span>
         </span>
         <div style={isMobile ? s.colHeaderControlsMobile : { display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap', ...(isMobile ? { lineHeight: 1.2 } : {}) }}>
             <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
             <span>Show tools</span>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap', ...(isMobile ? { lineHeight: 1.2 } : {}) }}>
             <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
             <span>Show thoughts</span>
           </label>
@@ -550,7 +566,7 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
       </div>
 
       {/* History scroll area */}
-      <div style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
+      <div ref={historyScrollRef} style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
         {historyLoading && history.length === 0 && (
           <div style={s.empty}>Loading…</div>
         )}

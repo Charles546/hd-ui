@@ -14,6 +14,7 @@ import AgentPickerModal from './AgentPickerModal'
 import { getLastKnownAgent, setLastKnownAgent } from '../utils/convoAgentStore'
 import useMediaQuery from '../utils/useMediaQuery'
 import useDividerDrag from '../utils/useDividerDrag'
+import useAutoHideHeader from '../utils/useAutoHideHeader'
 
 const MIN_INPUT_HEIGHT = 80
 const MAX_INPUT_HEIGHT = 500
@@ -46,7 +47,7 @@ const s = {
     position: 'relative',
     display: 'flex',
     gap: 0,
-    height: 'calc(100vh - 130px)',
+    height: 'calc(100dvh - var(--nav-h, 100px))',
     minHeight: 400,
   },
   leftCol: {
@@ -110,7 +111,7 @@ const s = {
     flexShrink: 0,
   },
   mobileColHeader: {
-    padding: '12px 12px',
+    padding: '6px 10px',
     borderBottom: '1px solid #2d3148',
     display: 'flex',
     alignItems: 'center',
@@ -118,7 +119,7 @@ const s = {
     background: '#11141c',
     flexShrink: 0,
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 4,
   },
   colTitleWrap: {
     display: 'flex',
@@ -126,6 +127,10 @@ const s = {
     gap: 8,
     minWidth: 0,
     flex: '1 1 auto',
+  },
+  colTitleWrapMobile: {
+    flex: '0 1 auto',
+    minWidth: 0,
   },
   colControls: {
     display: 'flex',
@@ -135,7 +140,8 @@ const s = {
   mobileColControls: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
+    rowGap: 2,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
   },
@@ -544,7 +550,15 @@ function buildConvoTree(convos) {
   return roots.map((c) => ({ convo: c, children: childrenMap.get(c.convo_id) || [] }))
 }
 
-export default function ConversationsPage({ initialConvoId = '', onConvoIdChange = () => {}, onFocusMode = () => {} }) {
+export default function ConversationsPage({
+  initialConvoId = '',
+  onConvoIdChange = () => {},
+  onFocusMode = () => {},
+  isDrawerOpen = false,
+  onCloseDrawer = () => {},
+  allowNavCollapse = false,
+  onNavCollapsedChange = () => {},
+}) {
   const { creds } = useAuth()
   const [convos, setConvos] = useState([])
   const [selectedID, setSelectedID] = useState(initialConvoId || null)
@@ -587,7 +601,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     inputAreaHeight,
     inputAreaStyle: dividerInputAreaStyle,
   } = useDividerDrag(MIN_INPUT_HEIGHT, MAX_INPUT_HEIGHT, DEFAULT_INPUT_HEIGHT)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const historyScrollRef = useRef(null)
   const timerRef = useRef(null)
   const idleTimerRef = useRef(null)
   const historyEndRef = useRef(null)
@@ -601,6 +615,15 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [pendingTurn, setPendingTurn] = useState(null)
   const [agentMetadata, setAgentMetadata] = useState({})
+
+  // Drive the GLOBAL NavBar collapse from this page's history scroll (mobile
+  // browser address-bar style). Paused while the drawer, agent picker, desktop,
+  // or NavBar-disabling conditions are active.
+  useAutoHideHeader({
+    containerRef: historyScrollRef,
+    active: isMobile && allowNavCollapse && !showAgentPicker,
+    onCollapsedChange: onNavCollapsedChange,
+  })
 
   const fetchConvos = useCallback(async (mode = 'poll') => {
     const isInitial = mode === 'initial'
@@ -742,23 +765,19 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     }
   }, [initialConvoId])
 
-  // Auto-open the drawer on mobile when no conversation is selected; close it
-  // whenever we leave the mobile layout.
+  // Close the drawer whenever we leave the mobile layout. Opening is owned by
+  // the global NavBar badge (lifted to App).
   useEffect(() => {
     if (!isMobile) {
-      setIsDrawerOpen(false)
-      return
+      onCloseDrawer()
     }
-    if (!selectedID && !isNewConvo) {
-      setIsDrawerOpen(true)
-    }
-  }, [isMobile, selectedID, isNewConvo])
+  }, [isMobile, onCloseDrawer])
 
   // Escape closes the drawer on mobile.
   useEffect(() => {
     if (!isMobile || !isDrawerOpen) return undefined
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsDrawerOpen(false)
+      if (e.key === 'Escape') onCloseDrawer()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -877,7 +896,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       await fetchConvos('poll')
       if (result?.convo_id) {
         setSelectedID(result.convo_id)
-        setIsDrawerOpen(false)
+        onCloseDrawer()
       }
     } catch (err) {
       setError(err.message)
@@ -890,20 +909,20 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
     setIsNewConvo(true)
     setSelectedID(null)
     setHistory([])
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
   const handleNavigateToSubAgent = useCallback((convoId) => {
     setSelectedID(convoId)
     setIsNewConvo(false)
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
 
   const handleSelectConvo = useCallback((convoId) => {
     setIsNewConvo(false)
     setSelectedID(convoId)
-    setIsDrawerOpen(false)
+    onCloseDrawer()
   }, [])
 
   // Handle agent selection from picker (recovery flow)
@@ -1121,7 +1140,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             {isMobile && (
               <button
                 style={s.drawerCloseBtn}
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={onCloseDrawer}
                 aria-label="Close conversation list"
               >
                 ✕
@@ -1207,7 +1226,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       {isMobile && isDrawerOpen && (
         <div
           style={s.backdrop}
-          onClick={() => setIsDrawerOpen(false)}
+          onClick={onCloseDrawer}
           role="presentation"
           aria-hidden="true"
           data-testid="conversation-drawer-backdrop"
@@ -1217,19 +1236,8 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
       {/* Right column — history */}
       <div style={isMobile ? s.rightColMobile : s.rightCol} data-testid="conversations-right-col">
         <div style={isMobile ? s.mobileColHeader : s.colHeader}>
-          <div style={s.colTitleWrap}>
-            {isMobile && (
-              <button
-                style={s.hamburger}
-                onClick={() => setIsDrawerOpen(true)}
-                aria-label="Open conversation list"
-                aria-expanded={isDrawerOpen}
-                aria-controls="conversation-list-panel"
-              >
-                ☰
-              </button>
-            )}
-            <span style={s.colTitle}>
+          <div style={isMobile ? s.colTitleWrapMobile : s.colTitleWrap}>
+            <span style={isMobile ? { ...s.colTitle, lineHeight: 1.2 } : s.colTitle}>
               {isNewConvo
                 ? 'New Conversation'
                 : selectedConvo
@@ -1238,11 +1246,11 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             </span>
           </div>
           <div style={isMobile ? s.mobileColControls : s.colControls}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, ...(isMobile ? { lineHeight: 1.2, whiteSpace: 'nowrap' } : {}) }}>
               <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
               <span>Show tools</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12, ...(isMobile ? { lineHeight: 1.2, whiteSpace: 'nowrap' } : {}) }}>
               <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
               <span>Show thoughts</span>
             </label>
@@ -1258,7 +1266,7 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
             )}
           </div>
         </div>
-        <div style={s.historyScroll} data-testid="conversations-history-scroll">
+        <div ref={historyScrollRef} style={s.historyScroll} data-testid="conversations-history-scroll">
           {isNewConvo && (
             <div style={s.empty}>Select an agent and type your first message below</div>
           )}

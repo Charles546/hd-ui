@@ -354,7 +354,7 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
   })
 })
 
-describe('ConversationsPage - Mobile Drawer', () => {
+describe('ConversationsPage - Mobile Drawer (App-controlled)', () => {
   const originalMatchMedia = window.matchMedia
 
   // jsdom does not implement window.matchMedia. Install a controllable mock so
@@ -414,22 +414,7 @@ describe('ConversationsPage - Mobile Drawer', () => {
     return document.getElementById('conversation-list-panel')
   }
 
-  it('auto-opens the drawer when no conversation is selected on mobile', async () => {
-    render(<ConversationsPage />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Conversations')).toBeInTheDocument()
-    })
-
-    // Hamburger lives in the right column header on mobile.
-    expect(screen.getByRole('button', { name: 'Open conversation list' })).toBeInTheDocument()
-
-    // Drawer is open with backdrop visible.
-    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
-    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
-  })
-
-  it('keeps the drawer closed when a conversation is selected and opens it via the hamburger', async () => {
+  it('renders the drawer closed when App passes isDrawerOpen=false', async () => {
     mockListConvos.mockResolvedValue([{
       convo_id: 'convo-123',
       first_session: { status: 'complete' },
@@ -437,49 +422,78 @@ describe('ConversationsPage - Mobile Drawer', () => {
       first_turn: 'Hello',
     }])
 
-    render(<ConversationsPage initialConvoId="convo-123" />)
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByText('Conversations')).toBeInTheDocument()
     })
 
-    // Drawer closed: hidden from accessibility tree, no backdrop.
+    // Drawer closed: hidden from the accessibility tree, no backdrop, and no
+    // page-level hamburger (the drawer now opens from the global NavBar).
     expect(getPanel().getAttribute('aria-hidden')).toBe('true')
     expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
-
-    // Hamburger toggles the drawer open.
-    fireEvent.click(screen.getByRole('button', { name: 'Open conversation list' }))
-    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
-    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
-
-    // Hamburger reflects expanded state.
-    expect(screen.getByRole('button', { name: 'Open conversation list' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
   })
 
-  it('closes the drawer when the backdrop is tapped', async () => {
-    render(<ConversationsPage />)
+  it('renders the drawer open when App passes isDrawerOpen=true', async () => {
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // Drawer open: visible panel + backdrop.
+    expect(getPanel().getAttribute('aria-hidden')).toBe('false')
+    expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+  })
+
+  it('closes the drawer when the backdrop is tapped via onCloseDrawer', async () => {
+    const onCloseDrawer = vi.fn()
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={onCloseDrawer}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByTestId('conversation-drawer-backdrop'))
-
-    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
-    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+    expect(onCloseDrawer).toHaveBeenCalled()
   })
 
-  it('closes the drawer when Escape is pressed', async () => {
-    render(<ConversationsPage />)
+  it('closes the drawer when Escape is pressed via onCloseDrawer', async () => {
+    const onCloseDrawer = vi.fn()
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={onCloseDrawer}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
     })
 
     fireEvent.keyDown(window, { key: 'Escape' })
-
-    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
-    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+    expect(onCloseDrawer).toHaveBeenCalled()
   })
 
   it('selecting a conversation closes the drawer and reveals that conversation', async () => {
@@ -489,18 +503,22 @@ describe('ConversationsPage - Mobile Drawer', () => {
       last_session: { status: 'complete', updated_at: new Date().toISOString() },
       first_turn: 'Hello',
     }])
+    const onCloseDrawer = vi.fn()
 
-    render(<ConversationsPage />)
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={onCloseDrawer}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText('convo-123'))
-
-    // Drawer closed after selection.
-    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
-    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+    expect(onCloseDrawer).toHaveBeenCalled()
 
     // Conversation revealed in the right column.
     await waitFor(() => {
@@ -509,17 +527,22 @@ describe('ConversationsPage - Mobile Drawer', () => {
     })
   })
 
-  it('going New switches to the new-convo view and closes the drawer', async () => {
-    render(<ConversationsPage />)
+  it('going New closes the drawer and switches to the new-convo view', async () => {
+    const onCloseDrawer = vi.fn()
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={onCloseDrawer}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: '+ New' }))
-
-    expect(getPanel().getAttribute('aria-hidden')).toBe('true')
-    expect(screen.queryByTestId('conversation-drawer-backdrop')).not.toBeInTheDocument()
+    expect(onCloseDrawer).toHaveBeenCalled()
     expect(screen.getByText('New Conversation')).toBeInTheDocument()
   })
 
@@ -532,7 +555,14 @@ describe('ConversationsPage - Mobile Drawer', () => {
       first_turn: 'Hello',
     }])
 
-    render(<ConversationsPage initialConvoId="convo-123" />)
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByText('Conversations')).toBeInTheDocument()
@@ -562,14 +592,14 @@ describe('ConversationsPage - Mobile Drawer', () => {
       first_turn: 'Hello',
     }])
 
-    render(<ConversationsPage initialConvoId="convo-123" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Open conversation list' })).toBeInTheDocument()
-    })
-
-    // With a conversation selected the drawer starts closed; open it via the hamburger.
-    fireEvent.click(screen.getByRole('button', { name: 'Open conversation list' }))
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
@@ -588,7 +618,13 @@ describe('ConversationsPage - Mobile Drawer', () => {
   })
 
   it('T2: drawer header and inner controls wrap on mobile so nothing overflows', async () => {
-    render(<ConversationsPage />)
+    render(
+      <ConversationsPage
+        isDrawerOpen
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '+ New' })).toBeInTheDocument()
@@ -612,7 +648,14 @@ describe('ConversationsPage - Mobile Drawer', () => {
       first_turn: 'Hello',
     }])
 
-    render(<ConversationsPage initialConvoId="convo-123" />)
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByText('Conversations')).toBeInTheDocument()
@@ -634,7 +677,14 @@ describe('ConversationsPage - Mobile Drawer', () => {
       first_turn: 'Hello',
     }])
 
-    render(<ConversationsPage initialConvoId="convo-123" />)
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse
+      />
+    )
 
     await waitFor(() => {
       expect(screen.getByText('Conversations')).toBeInTheDocument()
@@ -655,5 +705,219 @@ describe('ConversationsPage - Mobile Drawer', () => {
     const divider = screen.getByTestId('divider')
     expect(parseInt(divider.style.height, 10)).toBeGreaterThanOrEqual(12)
     expect(divider.style.touchAction).toBe('none')
+  })
+})
+
+describe('ConversationsPage - NavBar collapse wiring', () => {
+  const originalMatchMedia = window.matchMedia
+
+  function installMatchMedia(matches) {
+    const mqls = new Map()
+    window.matchMedia = vi.fn((query) => {
+      if (!mqls.has(query)) {
+        const listeners = new Set()
+        mqls.set(query, {
+          get matches() {
+            return matches
+          },
+          media: query,
+          onchange: null,
+          addEventListener: (type, listener) => {
+            if (type === 'change') listeners.add(listener)
+          },
+          removeEventListener: (type, listener) => {
+            if (type === 'change') listeners.delete(listener)
+          },
+          addListener: (listener) => listeners.add(listener),
+          removeListener: (listener) => listeners.delete(listener),
+        })
+      }
+      return mqls.get(query)
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListConvos.mockReset()
+    mockListConvos.mockResolvedValue([])
+    mockGetConvoHistory.mockReset()
+    mockGetConvoHistory.mockResolvedValue([])
+    mockGetConvoState.mockReset()
+    mockGetConvoState.mockResolvedValue(null)
+    mockCancelConvo.mockReset()
+    mockCancelConvo.mockResolvedValue({})
+    mockStartTurn.mockReset()
+    mockStartNewConvo.mockReset()
+    mockListAgents.mockReset()
+    mockListAgents.mockResolvedValue(['agent1', 'agent2'])
+    mockListEngines.mockReset()
+    mockListEngines.mockResolvedValue(['openai:gpt-4o'])
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('drives onNavCollapsedChange(true) on forward scroll when NavBar collapse is allowed', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    const onNavCollapsedChange = vi.fn()
+
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse
+        onNavCollapsedChange={onNavCollapsedChange}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const scroller = screen.getByTestId('conversations-history-scroll')
+    scroller.scrollTop = 120
+    fireEvent.scroll(scroller)
+    expect(onNavCollapsedChange).toHaveBeenCalledWith(true)
+  })
+
+  it('drives onNavCollapsedChange(false) when the scroll reaches the top', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    const onNavCollapsedChange = vi.fn()
+
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse
+        onNavCollapsedChange={onNavCollapsedChange}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    const scroller = screen.getByTestId('conversations-history-scroll')
+    scroller.scrollTop = 150
+    fireEvent.scroll(scroller)
+    expect(onNavCollapsedChange).toHaveBeenCalledWith(true)
+
+    scroller.scrollTop = 0
+    fireEvent.scroll(scroller)
+    expect(onNavCollapsedChange).toHaveBeenCalledWith(false)
+  })
+
+  it('does not collapse the NavBar while the drawer is open (allowNavCollapse=false)', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+    const onNavCollapsedChange = vi.fn()
+
+    render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse={false}
+        onNavCollapsedChange={onNavCollapsedChange}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conversation-drawer-backdrop')).toBeInTheDocument()
+    })
+
+    // Collapse is inactive while the drawer is open: a strong forward scroll
+    // must NOT notify the NavBar to collapse.
+    const scroller = screen.getByTestId('conversations-history-scroll')
+    scroller.scrollTop = 120
+    fireEvent.scroll(scroller)
+    expect(onNavCollapsedChange).not.toHaveBeenCalledWith(true)
+  })
+
+  it('restores the single page-level header (no split title/nav bars) and keeps composer transform empty', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-123',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+      first_turn: 'Hello',
+    }])
+    mockGetConvoHistory.mockResolvedValue([
+      { Role: 'user', content: 'Hello' },
+      { Role: 'agent', content: 'Done', status: 'complete' },
+    ])
+
+    const { container } = render(
+      <ConversationsPage
+        initialConvoId="convo-123"
+        isDrawerOpen={false}
+        onCloseDrawer={vi.fn()}
+        allowNavCollapse
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Start a new turn…')).toBeInTheDocument()
+    })
+
+    // No page-level split title/nav bars (removed in the rework) and no
+    // page-level hamburger — drawer opens from the global NavBar only.
+    expect(screen.queryByTestId('conversations-title-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('conversations-nav-bar')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open conversation list' })).not.toBeInTheDocument()
+
+    // Single colHeader on mobile (no collapse transform on the page header).
+    const header = container.querySelector('[data-testid="conversations-right-col"] > div')
+    expect(header.style.transform).toBe('')
+
+    // Compact header: minimal vertical padding so the history box only takes the
+    // space it needs — no "big empty forehead".
+    expect(parseInt(header.style.paddingTop, 10)).toBeLessThanOrEqual(8)
+    expect(parseInt(header.style.paddingBottom, 10)).toBeLessThanOrEqual(8)
+    // Title wrap no longer grows to fill the row (flexGrow 0) so title +
+    // controls CAN share a single row; wraps only when forced.
+    const titleRow = container.querySelector('[data-testid="conversations-right-col"] > div > div')
+    expect(titleRow.style.flexGrow).toBe('0')
+    // Title text uses a tighter line-height to keep the row compact.
+    expect(titleRow.querySelector('span').style.lineHeight).toBe('1.2')
+
+    // Composer never receives any collapse transform.
+    const composer = container.querySelector('[data-testid="convo-turn-input-area"]')
+    expect(composer.style.transform).toBe('')
   })
 })

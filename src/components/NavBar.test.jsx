@@ -135,3 +135,197 @@ describe('NavBar - mobile responsiveness', () => {
     expect(mockLogout).toHaveBeenCalled()
   })
 })
+
+describe('NavBar - Conversations badge hamburger (mobile)', () => {
+  beforeEach(() => {
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('prepends the ☰ glyph to the Conversations badge on mobile', () => {
+    const onViewChange = vi.fn()
+    render(
+      <NavBar
+        view="events"
+        onViewChange={onViewChange}
+        showConversationsTab
+        showGlobalEventsTab
+      />
+    )
+
+    const badge = screen.getByTestId('conversations-badge')
+    expect(badge).toBeInTheDocument()
+    // Badge carries the hamburger glyph on mobile.
+    expect(badge.textContent).toContain('☰')
+  })
+
+  it('does NOT prepend the hamburger on desktop', () => {
+    installMatchMedia(false)
+    const onViewChange = vi.fn()
+    render(
+      <NavBar
+        view="events"
+        onViewChange={onViewChange}
+        showConversationsTab
+        showGlobalEventsTab
+      />
+    )
+
+    const badge = screen.getByTestId('conversations-badge')
+    expect(badge.textContent).not.toContain('☰')
+  })
+
+  it('tapping the badge on another view navigates to conversations and opens the drawer', () => {
+    const onViewChange = vi.fn()
+    const onOpenDrawer = vi.fn()
+    render(
+      <NavBar
+        view="events"
+        onViewChange={onViewChange}
+        onOpenDrawer={onOpenDrawer}
+        showConversationsTab
+        showGlobalEventsTab
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('conversations-badge'))
+    expect(onViewChange).toHaveBeenCalledWith('conversations')
+    expect(onOpenDrawer).toHaveBeenCalled()
+  })
+
+  it('tapping the badge while in conversations with the drawer closed opens it', () => {
+    const onViewChange = vi.fn()
+    const onOpenDrawer = vi.fn()
+    const onCloseDrawer = vi.fn()
+    render(
+      <NavBar
+        view="conversations"
+        isDrawerOpen={false}
+        onViewChange={onViewChange}
+        onOpenDrawer={onOpenDrawer}
+        onCloseDrawer={onCloseDrawer}
+        showConversationsTab
+        showGlobalEventsTab
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('conversations-badge'))
+    expect(onOpenDrawer).toHaveBeenCalled()
+    expect(onCloseDrawer).not.toHaveBeenCalled()
+  })
+
+  it('tapping the badge while in conversations with the drawer open closes it', () => {
+    const onViewChange = vi.fn()
+    const onOpenDrawer = vi.fn()
+    const onCloseDrawer = vi.fn()
+    render(
+      <NavBar
+        view="conversations"
+        isDrawerOpen
+        onViewChange={onViewChange}
+        onOpenDrawer={onOpenDrawer}
+        onCloseDrawer={onCloseDrawer}
+        showConversationsTab
+        showGlobalEventsTab
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('conversations-badge'))
+    expect(onCloseDrawer).toHaveBeenCalled()
+    expect(onOpenDrawer).not.toHaveBeenCalled()
+  })
+})
+
+describe('NavBar - auto-hide transform (mobile only)', () => {
+  beforeEach(() => {
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('applies translateY(-100%) to the GLOBAL nav when navCollapsed on mobile', () => {
+    render(<NavBar navCollapsed />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.transform).toContain('translateY(-100%)')
+    // Smooth address-bar-like transition.
+    expect(nav.style.transition).toContain('transform')
+  })
+
+  it('keeps the nav expanded (translateY 0) when not collapsed on mobile', () => {
+    render(<NavBar navCollapsed={false} />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.transform).toContain('translateY(0)')
+  })
+
+  it('applies NO transform on desktop regardless of navCollapsed', () => {
+    installMatchMedia(false)
+    render(<NavBar navCollapsed />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.transform).toBe('')
+  })
+})
+
+
+describe('NavBar - overlay (out-of-flow) positioning', () => {
+  beforeEach(() => {
+    installMatchMedia(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('is position fixed at the top with zIndex 10 on mobile when overlay', () => {
+    render(<NavBar view="conversations" overlay />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.position).toBe('fixed')
+    expect(nav.style.top).toBe('0px')
+    expect(nav.style.left).toBe('0px')
+    expect(nav.style.right).toBe('0px')
+    expect(nav.style.zIndex).toBe('10')
+  })
+
+  it('keeps the collapse transform while overlaid (fixed) on mobile', () => {
+    render(<NavBar view="focus" overlay navCollapsed />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.position).toBe('fixed')
+    expect(nav.style.transform).toContain('translateY(-100%)')
+    expect(nav.style.transition).toContain('transform')
+  })
+
+  it('is NOT fixed when overlay=false on mobile (stays sticky in flow)', () => {
+    render(<NavBar view="conversations" overlay={false} />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.position).toBe('sticky')
+    // On mobile the collapse transform still applies (translateY(0) when not
+    // collapsed) — only the out-of-flow overlay positioning is gated by overlay.
+    expect(nav.style.transform).toContain('translateY(0)')
+  })
+
+  it('is sticky (in flow) on desktop even when overlay is passed', () => {
+    installMatchMedia(false)
+    render(<NavBar view="conversations" overlay />)
+
+    const nav = screen.getByTestId('navbar')
+    expect(nav.style.position).toBe('sticky')
+    expect(nav.style.transform).toBe('')
+  })
+})
+
