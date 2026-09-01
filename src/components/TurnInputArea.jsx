@@ -2,12 +2,6 @@ import { memo, useState } from 'react'
 import BadgeSelect from './BadgeSelect'
 import CircularSendButton from './CircularSendButton'
 
-// Fixed footprint the footer row adds below the textarea so the textarea
-// height can be derived from the divider-driven composer height.
-const FOOTER_HEIGHT = 30
-// Vertical padding inside the textarea (10px top + 10px bottom).
-const VERTICAL_PAD = 20
-
 const textareaStyle = {
   width: '100%',
   minWidth: 0,
@@ -23,6 +17,8 @@ const textareaStyle = {
   fontFamily: 'inherit',
   minHeight: 38,
   boxSizing: 'border-box',
+  flex: '1 1 auto',
+  overflowY: 'auto',
 }
 
 const footerStyle = {
@@ -30,9 +26,12 @@ const footerStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
-  marginTop: 4,
+  marginTop: 'auto',
   minWidth: 0,
   flexWrap: 'wrap',
+  flexShrink: 0,
+  boxSizing: 'border-box',
+  padding: '0 12px',
 }
 
 function parseEngineValue(value) {
@@ -42,7 +41,7 @@ function parseEngineValue(value) {
   return { driver: value.substring(0, idx), engine: value.substring(idx + 1) }
 }
 
-const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, engines, selectedEngine, onEngineChange, inputHeight }) {
+const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeholder, buttonLabel, engines, selectedEngine, onEngineChange }) {
   const [text, setText] = useState('')
 
   const handleSubmit = () => {
@@ -60,8 +59,6 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
     }
   }
 
-  const textareaHeight = inputHeight ? Math.max(38, inputHeight - FOOTER_HEIGHT - VERTICAL_PAD) : undefined
-
   const engineOptions = []
   if (!selectedEngine) engineOptions.push({ value: '', label: 'Default engine' })
   ;(engines || []).forEach((e) => {
@@ -73,7 +70,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0 }}>
       <textarea
-        style={{ ...textareaStyle, height: textareaHeight }}
+        style={textareaStyle}
         rows={1}
         placeholder={placeholder || 'Type a message…'}
         value={text}
@@ -81,7 +78,7 @@ const TurnInputArea = memo(function TurnInputArea({ onSubmit, isSending, placeho
         onKeyDown={handleKeyDown}
         disabled={isSending}
       />
-      <div style={footerStyle}>
+      <div data-testid="turn-composer-footer" style={footerStyle}>
         {hasEngines && (
           <BadgeSelect
             value={selectedEngine || ''}

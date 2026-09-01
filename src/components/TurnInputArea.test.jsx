@@ -19,7 +19,6 @@ describe('TurnInputArea', () => {
     isSending: false,
     placeholder: 'Start a new turn…',
     buttonLabel: 'Send',
-    inputHeight: 160,
     engines: [
       { driver: 'openai', engine: 'hy3' },
       { driver: 'openai', engine: 'gpt-4' },
@@ -34,6 +33,34 @@ describe('TurnInputArea', () => {
     expect(ta.style.borderWidth).toBe('0px')
     expect(ta.style.borderRadius).toBe('0px')
     expect(ta.style.width).toBe('100%')
+  })
+
+  it('T1b: footer row has horizontal breathing room and textarea stays full-bleed', () => {
+    render(<TurnInputArea {...baseProps} />)
+    const footer = screen.getByTestId('turn-composer-footer')
+    // R1: footer only gets horizontal padding so badges/send have room from the side borders.
+    expect(footer.style.paddingLeft).toBe('12px')
+    expect(footer.style.paddingRight).toBe('12px')
+
+    // textarea still full-bleed / borderless (no footer padding leaked onto it)
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+    expect(ta.style.borderWidth).toBe('0px')
+    expect(ta.style.borderRadius).toBe('0px')
+    expect(ta.style.width).toBe('100%')
+  })
+
+  it('T1c: textarea grows to fill (flex) while footer stays pinned to the bottom', () => {
+    render(<TurnInputArea {...baseProps} />)
+    const footer = screen.getByTestId('turn-composer-footer')
+    const ta = screen.getByPlaceholderText('Start a new turn…')
+
+    // R2: footer pinned to bottom edge and never grows.
+    expect(footer.style.marginTop).toBe('auto')
+    expect(footer.style.flexShrink).toBe('0')
+
+    // R2: textarea is the flex child that absorbs height changes; no hardcoded height.
+    expect(ta.style.flex).toMatch(/^1 /)
+    expect(ta.style.height).toBe('')
   })
 
   it('T2: footer contains the Engine badge and the circular send button', () => {

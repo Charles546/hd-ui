@@ -2,11 +2,6 @@ import { memo, useState } from 'react'
 import BadgeSelect from './BadgeSelect'
 import CircularSendButton from './CircularSendButton'
 
-// Fixed footprint the footer row adds below the textarea.
-const FOOTER_HEIGHT = 30
-// Vertical padding inside the textarea (10px top + 10px bottom).
-const VERTICAL_PAD = 20
-
 const inputAreaStyle = {
   background: '#11141c',
   flexShrink: 0,
@@ -33,6 +28,8 @@ const textareaStyle = {
   minHeight: 38,
   maxHeight: 140,
   boxSizing: 'border-box',
+  flex: '1 1 auto',
+  overflowY: 'auto',
 }
 
 const footerStyle = {
@@ -40,9 +37,12 @@ const footerStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 8,
-  marginTop: 4,
+  marginTop: 'auto',
   minWidth: 0,
   flexWrap: 'wrap',
+  flexShrink: 0,
+  boxSizing: 'border-box',
+  padding: '0 12px',
 }
 
 const badgesWrapStyle = {
@@ -70,7 +70,6 @@ const NewConvoInput = memo(function NewConvoInput({
   onEngineChange,
   onSend,
   isSending,
-  inputHeight,
 }) {
   const [text, setText] = useState('')
 
@@ -89,8 +88,6 @@ const NewConvoInput = memo(function NewConvoInput({
     }
   }
 
-  const textareaHeight = inputHeight ? Math.max(38, inputHeight - FOOTER_HEIGHT - VERTICAL_PAD) : undefined
-
   const agentOptions = (agents || []).map((a) => ({ value: a, label: a }))
   const engineOptions = []
   if (!selectedEngine) engineOptions.push({ value: '', label: 'Default engine' })
@@ -101,7 +98,7 @@ const NewConvoInput = memo(function NewConvoInput({
   return (
     <div style={inputAreaStyle}>
       <textarea
-        style={{ ...textareaStyle, height: textareaHeight, overflowY: 'auto' }}
+        style={textareaStyle}
         rows={1}
         placeholder="Type your first message…"
         value={text}
@@ -109,7 +106,7 @@ const NewConvoInput = memo(function NewConvoInput({
         onKeyDown={handleKeyDown}
         disabled={isSending}
       />
-      <div style={footerStyle}>
+      <div data-testid="new-convo-composer-footer" style={footerStyle}>
         <div style={badgesWrapStyle}>
           <BadgeSelect
             value={selectedAgent || ''}

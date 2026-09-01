@@ -1306,7 +1306,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               onEngineChange={setSelectedEngine}
               onSend={handleSendNewConvo}
               isSending={isSendingTurn}
-              inputHeight={inputAreaHeight - 20}
             />
           </div>
         )}
@@ -1317,7 +1316,6 @@ export default function ConversationsPage({ initialConvoId = '', onConvoIdChange
               isSending={isSendingTurn}
               placeholder="Start a new turn…"
               buttonLabel="Send"
-              inputHeight={inputAreaHeight - 20}
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}

@@ -603,7 +603,6 @@ export default function ConvoHistoryPage({ convoId, onNavigateToConvo }) {
               engines={engines}
               selectedEngine={selectedEngine}
               onEngineChange={setSelectedEngine}
-              inputHeight={inputAreaHeight - 20}
             />
           </div>
         </>

@@ -26,7 +26,6 @@ describe('NewConvoInput', () => {
     onEngineChange: vi.fn(),
     onSend: vi.fn(),
     isSending: false,
-    inputHeight: 160,
   }
 
   it('T1: textarea is full-width and borderless', () => {
@@ -35,6 +34,34 @@ describe('NewConvoInput', () => {
     expect(ta.style.width).toBe('100%')
     expect(ta.style.borderWidth).toBe('0px')
     expect(ta.style.borderRadius).toBe('0px')
+  })
+
+  it('T1b: footer row has horizontal breathing room and textarea stays full-bleed', () => {
+    render(<NewConvoInput {...baseProps} />)
+    const footer = screen.getByTestId('new-convo-composer-footer')
+    // R1: footer only gets horizontal padding so badges/send have room from the side borders.
+    expect(footer.style.paddingLeft).toBe('12px')
+    expect(footer.style.paddingRight).toBe('12px')
+
+    // textarea still full-bleed / borderless
+    const ta = screen.getByPlaceholderText('Type your first message…')
+    expect(ta.style.borderWidth).toBe('0px')
+    expect(ta.style.borderRadius).toBe('0px')
+    expect(ta.style.width).toBe('100%')
+  })
+
+  it('T1c: textarea grows to fill (flex) while footer stays pinned to the bottom', () => {
+    render(<NewConvoInput {...baseProps} />)
+    const footer = screen.getByTestId('new-convo-composer-footer')
+    const ta = screen.getByPlaceholderText('Type your first message…')
+
+    // R2: footer pinned to bottom edge and never grows.
+    expect(footer.style.marginTop).toBe('auto')
+    expect(footer.style.flexShrink).toBe('0')
+
+    // R2: textarea is the flex child that absorbs height changes; no hardcoded height.
+    expect(ta.style.flex).toMatch(/^1 /)
+    expect(ta.style.height).toBe('')
   })
 
   it('T2: footer has Agent + Engine badges and a circular Start button', () => {
