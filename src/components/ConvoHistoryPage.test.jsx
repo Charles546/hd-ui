@@ -696,6 +696,53 @@ describe('ConvoHistoryPage', () => {
       }
     })
   })
+
+  it('displays the compaction-driving context size (ctx) distinctly from the cumulative total', async () => {
+    const messages = makeMessages([{ Role: 'user', content: 'Hello' }])
+    mockGetConvoHistory.mockResolvedValue(messages)
+
+    // Node-enveloped ConvoState carries both the compaction baseline and the
+    // cumulative unbounded total.
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({
+        prev_context_size: 1234,
+        total_tokens: 5000,
+        last_session: { status: 'complete', session_id: 'sess-1' },
+      })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('convo-token-metrics')).toBeInTheDocument()
+    })
+
+    // The compaction-driving metric (ctx) is displayed distinctly from total.
+    const ctxMetric = screen.getByTestId('convo-context-size')
+    expect(ctxMetric).toBeInTheDocument()
+    expect(ctxMetric.textContent).toContain('1,234')
+    expect(ctxMetric.textContent).toContain('ctx:')
+    expect(ctxMetric.title).toContain('auto-compaction')
+
+    // The cumulative unbounded total is still shown, unchanged.
+    const totalMetric = screen.getByTestId('convo-total-tokens')
+    expect(totalMetric.textContent).toContain('5,000')
+    expect(totalMetric.textContent).toContain('total:')
+  })
+
+  it('does not render the token metrics strip when no metrics are present', async () => {
+    const messages = makeMessages([{ Role: 'user', content: 'Hello' }])
+    mockGetConvoHistory.mockResolvedValue(messages)
+    mockGetConvoState.mockResolvedValue(
+      makeConvoState({ last_session: { status: 'complete', session_id: 'sess-1' } })
+    )
+
+    render(<ConvoHistoryPage convoId="convo-123" />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('convo-token-metrics')).not.toBeInTheDocument()
+    })
+  })
 })
 
 describe('ConvoHistoryPage - Mobile responsiveness', () => {

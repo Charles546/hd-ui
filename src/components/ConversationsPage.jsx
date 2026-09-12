@@ -469,8 +469,22 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
         {lastSession?.input_tokens > 0 && (
           <span style={{ fontSize: 11, color: '#475569' }}>tokens: {lastSession.input_tokens.toLocaleString()}/{(lastSession.output_tokens || 0).toLocaleString()}</span>
         )}
+        {convo.prev_context_size > 0 && (
+          <span
+            data-testid="convo-context-size"
+            style={{ fontSize: 11, color: '#38bdf8', marginLeft: 8 }}
+            title="Context size driving auto-compaction (latest model call; resets after compaction)"
+          >
+            ctx: {convo.prev_context_size.toLocaleString()}
+          </span>
+        )}
         {totalTokens > 0 && (
-          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>total: {totalTokens.toLocaleString()}</span>
+          <span
+            style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}
+            title="Cumulative total tokens (all sessions, unbounded)"
+          >
+            total: {totalTokens.toLocaleString()}
+          </span>
         )}
       </div>
     </div>
