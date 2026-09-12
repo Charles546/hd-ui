@@ -352,6 +352,34 @@ describe('ConversationsPage - Conversation Recovery Flow', () => {
     fireEvent.touchEnd(divider)
     expect(composer.style.height).toBe('210px')
   })
+
+  it('displays the compaction-driving context size (ctx) distinctly from the cumulative total', async () => {
+    mockListConvos.mockResolvedValue([{
+      convo_id: 'convo-ctx-1',
+      prev_context_size: 1234,
+      total_tokens: 5000,
+      first_turn: 'Hello',
+      first_session: { status: 'complete' },
+      last_session: { status: 'complete', updated_at: new Date().toISOString() },
+    }])
+
+    render(<ConversationsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+    })
+
+    // The compaction-driving metric is shown as ctx (latest model call context
+    // size), distinct from the unbounded cumulative total.
+    const ctxMetric = screen.getByTestId('convo-context-size')
+    expect(ctxMetric).toBeInTheDocument()
+    expect(ctxMetric.textContent).toContain('1,234')
+    expect(ctxMetric.textContent).toContain('ctx:')
+    expect(ctxMetric.title).toContain('auto-compaction')
+
+    // The cumulative unbounded total is still shown, unchanged.
+    expect(screen.getByText('total: 5,000')).toBeInTheDocument()
+  })
 })
 
 describe('ConversationsPage - Mobile Drawer (App-controlled)', () => {

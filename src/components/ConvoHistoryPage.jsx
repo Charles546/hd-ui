@@ -45,6 +45,18 @@ const s = {
     flexShrink: 0,
   },
   colTitle: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
+  metricsStrip: {
+    padding: '4px 16px',
+    borderBottom: '1px solid #2d3148',
+    background: '#0f1117',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
+    flexShrink: 0,
+  },
+  metricsLabel: { fontSize: 11, color: '#64748b' },
+  metricsCtx: { fontSize: 11, color: '#38bdf8', fontWeight: 600 },
   historyScroll: { flex: 1, overflowY: 'auto', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 },
   empty: { textAlign: 'center', color: '#475569', padding: '40px 16px', fontSize: 14 },
   err: { color: '#f87171', fontSize: 12, padding: '8px 12px' },
@@ -177,6 +189,29 @@ function deriveConvoStatus(convoState, history) {
   const sessionStatus = getConvoStateStatus(convoState)
   if (sessionStatus) return sessionStatus
   return getConvoStatus(history)
+}
+
+// getConvoTokenMetrics extracts the compaction-driving context size
+// (prev_context_size, the baseline compared against the compaction threshold)
+// and the cumulative unbounded total (total_tokens) from the node-enveloped
+// ConvoState returned by getConvoState. The response is keyed by node IP, e.g.
+// { "10.255.255.254": { agent: {...}, prev_context_size: 1234, total_tokens: 5000 } }.
+// Returns zeros when the state has no metrics yet.
+function getConvoTokenMetrics(convoState) {
+  if (!convoState || typeof convoState !== 'object') return { prevContextSize: 0, totalTokens: 0 }
+
+  let state = convoState
+  const keys = Object.keys(convoState)
+  if (keys.length > 0) {
+    const nodeKey = keys.length === 1 ? keys[0] : keys.find((k) => k.includes('.')) || keys[0]
+    const val = convoState[nodeKey]
+    if (val && typeof val === 'object') state = val
+  }
+
+  return {
+    prevContextSize: state?.prev_context_size || 0,
+    totalTokens: state?.total_tokens || 0,
+  }
 }
 
 export default function ConvoHistoryPage({
@@ -529,6 +564,7 @@ export default function ConvoHistoryPage({
 
 
   const statusColor = STATUS_COLOR[convoStatus] || '#94a3b8'
+  const { prevContextSize, totalTokens } = getConvoTokenMetrics(convoState)
 
   return (
     <div style={isMobile ? s.pageMobile : s.page} data-testid="convo-history-page">
@@ -564,6 +600,23 @@ export default function ConvoHistoryPage({
           ) : null}
         </div>
       </div>
+
+      {/* Token metrics — the compaction-driving context size (ctx) is shown
+          distinctly from the cumulative unbounded total across all sessions. */}
+      {(prevContextSize > 0 || totalTokens > 0) && (
+        <div style={s.metricsStrip} data-testid="convo-token-metrics">
+          {prevContextSize > 0 && (
+            <span data-testid="convo-context-size" style={s.metricsCtx} title="Context size driving auto-compaction (latest model call)">
+              ctx: {prevContextSize.toLocaleString()}
+            </span>
+          )}
+          {totalTokens > 0 && (
+            <span data-testid="convo-total-tokens" style={s.metricsLabel} title="Cumulative total tokens (all sessions, unbounded)">
+              total: {totalTokens.toLocaleString()}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* History scroll area */}
       <div ref={historyScrollRef} style={isMobile ? s.historyScrollMobile : s.historyScroll} data-testid="convo-history-scroll">
