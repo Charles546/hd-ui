@@ -473,7 +473,7 @@ const ConvoCard = memo(function ConvoCard({ convo, selected, onClick, onCancel, 
           <span
             data-testid="convo-context-size"
             style={{ fontSize: 11, color: '#38bdf8', marginLeft: 8 }}
-            title="Context size driving auto-compaction (latest model call)"
+            title="Context size driving auto-compaction (latest model call; resets after compaction)"
           >
             ctx: {convo.prev_context_size.toLocaleString()}
           </span>

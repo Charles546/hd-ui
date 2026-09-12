@@ -606,7 +606,7 @@ export default function ConvoHistoryPage({
       {(prevContextSize > 0 || totalTokens > 0) && (
         <div style={s.metricsStrip} data-testid="convo-token-metrics">
           {prevContextSize > 0 && (
-            <span data-testid="convo-context-size" style={s.metricsCtx} title="Context size driving auto-compaction (latest model call)">
+            <span data-testid="convo-context-size" style={s.metricsCtx} title="Context size driving auto-compaction (latest model call; resets after compaction)">
               ctx: {prevContextSize.toLocaleString()}
             </span>
           )}
